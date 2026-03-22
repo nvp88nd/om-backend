@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common';
 import { config } from 'dotenv';
 import { performance } from 'node:perf_hooks';
 
@@ -14,6 +15,9 @@ async function bootstrap() {
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
+
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+
   app.use((req, res, next) => {
     const start = performance.now();
 
