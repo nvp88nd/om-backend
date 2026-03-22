@@ -1,34 +1,60 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, ParseUUIDPipe } from '@nestjs/common';
 import { ComplaintViolationService } from './complaint_violation.service';
-import { CreateComplaintViolationDto } from './dto/create-complaint_violation.dto';
-import { UpdateComplaintViolationDto } from './dto/update-complaint_violation.dto';
+import { CreateComplaintDto, CreateViolationDto, ComplaintStatus } from './dto/complaint_violation.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('complaint-violation')
+@UseGuards(JwtAuthGuard)
 export class ComplaintViolationController {
-  constructor(private readonly complaintViolationService: ComplaintViolationService) {}
+  constructor(private readonly service: ComplaintViolationService) {}
 
-  @Post()
-  create(@Body() createComplaintViolationDto: CreateComplaintViolationDto) {
-    return this.complaintViolationService.create(createComplaintViolationDto);
+  // User: File a complaint
+  @Post('complaints')
+  createComplaint(@CurrentUser('id') userId: string, @Body() dto: CreateComplaintDto) {
+    return this.service.createComplaint(userId, dto);
   }
 
-  @Get()
-  findAll() {
-    return this.complaintViolationService.findAll();
+  // Admin: Get all complaints
+  @Get('complaints')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  findAllComplaints() {
+    return this.service.findAllComplaints();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.complaintViolationService.findOne(+id);
+  // Admin: Update complaint status
+  @Patch('complaints/:id/status')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  updateComplaintStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('status') status: ComplaintStatus
+  ) {
+    return this.service.updateComplaintStatus(id, status);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateComplaintViolationDto: UpdateComplaintViolationDto) {
-    return this.complaintViolationService.update(+id, updateComplaintViolationDto);
+  // Admin: Record a violation
+  @Post('violations')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  createViolation(@Body() dto: CreateViolationDto) {
+    return this.service.createViolation(dto);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.complaintViolationService.remove(+id);
+  // Admin: Get all violations
+  @Get('violations')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  findAllViolations() {
+    return this.service.findAllViolations();
+  }
+
+  // User: Get my violations
+  @Get('my-violations')
+  findMyViolations(@CurrentUser('id') userId: string) {
+    return this.service.findViolationsByUser(userId);
   }
 }

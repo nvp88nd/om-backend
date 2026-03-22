@@ -1,34 +1,37 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, ParseUUIDPipe, Patch } from '@nestjs/common';
 import { ChatService } from './chat.service';
-import { CreateChatDto } from './dto/create-chat.dto';
-import { UpdateChatDto } from './dto/update-chat.dto';
+import { CreateRoomDto } from './dto/chat.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @Controller('chat')
+@UseGuards(JwtAuthGuard)
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
-  @Post()
-  create(@Body() createChatDto: CreateChatDto) {
-    return this.chatService.create(createChatDto);
+  @Post('rooms')
+  createRoom(@CurrentUser('id') userId: string, @Body() dto: CreateRoomDto) {
+    return this.chatService.getOrCreateRoom(userId, dto.shop_id);
   }
 
-  @Get()
-  findAll() {
-    return this.chatService.findAll();
+  @Get('rooms')
+  getRooms(@CurrentUser('id') userId: string) {
+    return this.chatService.getRoomsForUser(userId);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.chatService.findOne(+id);
+  @Get('rooms/:id/messages')
+  getMessages(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) roomId: string
+  ) {
+    return this.chatService.getMessages(roomId, userId);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateChatDto: UpdateChatDto) {
-    return this.chatService.update(+id, updateChatDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.chatService.remove(+id);
+  @Patch('rooms/:id/read')
+  markAsRead(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) roomId: string
+  ) {
+    return this.chatService.markAsRead(roomId, userId);
   }
 }
