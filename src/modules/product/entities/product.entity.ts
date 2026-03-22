@@ -32,8 +32,9 @@ export class Product {
     @Column({ type: 'decimal', precision: 12, scale: 2 })
     base_price: number;
 
-    @Column({ type: 'smallint' })
+    @Column({ type: 'tinyint', default: 0 })
     status: number;
+    // 0 draft, 1 pending, 2 approved, 3 rejected
 
     @CreateDateColumn()
     created_at: Date;

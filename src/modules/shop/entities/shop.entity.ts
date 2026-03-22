@@ -29,8 +29,9 @@ export class Shop {
     @Column({ type: 'text', nullable: true })
     address: string;
 
-    @Column({ type: 'smallint' })
+    @Column({ type: 'tinyint', default: 0 })
     status: number;
+    // 0 pending, 1 active, 2 rejected, 3 locked
 
     @CreateDateColumn()
     created_at: Date;
