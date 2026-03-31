@@ -1,20 +1,21 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseUUIDPipe } from '@nestjs/common';
-import { ProductService } from './product.service';
-import { CreateProductDto } from './dto/create-product.dto';
-import { UpdateProductDto } from './dto/update-product.dto';
-import { ProductFilterDto, ProductStatus } from './dto/product-filter.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { CreateProductDto } from './dto/create-product.dto';
+import { ProductFilterDto, ProductStatus } from './dto/product-filter.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
+import { ProductService } from './product.service';
 
 @Controller('products')
 export class ProductController {
-  constructor(private readonly productService: ProductService) {}
+  constructor(private readonly productService: ProductService) { }
 
   // Public: Get all approved products with filtering/pagination
   @Get()
   findAll(@Query() filter: ProductFilterDto) {
+    console.log('test');
     return this.productService.findAll(filter);
   }
 
@@ -49,7 +50,7 @@ export class ProductController {
   @Patch(':id')
   update(
     @CurrentUser('id') userId: string,
-    @Param('id', ParseUUIDPipe) id: string, 
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateProductDto: UpdateProductDto
   ) {
     return this.productService.update(userId, id, updateProductDto);

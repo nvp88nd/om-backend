@@ -1,8 +1,8 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
 import { config } from 'dotenv';
 import { performance } from 'node:perf_hooks';
+import { AppModule } from './app.module';
 
 async function bootstrap() {
   config();
@@ -11,7 +11,7 @@ async function bootstrap() {
   const corsOrigin = process.env.CORS_ORIGIN ?? 'http://localhost:5173';
 
   app.enableCors({
-    origin: corsOrigin,
+    origin: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });

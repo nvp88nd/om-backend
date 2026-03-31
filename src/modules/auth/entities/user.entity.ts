@@ -28,7 +28,8 @@ export class User {
     @Column({ type: 'text', nullable: true })
     avatar_url: string;
 
-    @Column({ type: 'smallint', default: 1 })
+    // 0: đk chưa xác thực email -> cho phép ghi đè, 1 đã xác thực email, 2 khóa, ...
+    @Column({ type: 'smallint', default: 0 })
     status: number;
 
     @Column({ nullable: true })

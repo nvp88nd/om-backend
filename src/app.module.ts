@@ -17,7 +17,6 @@ import { PromotionModule } from './modules/promotion/promotion.module';
 import { ContentSystemModule } from './modules/content_system/content_system.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { ComplaintViolationModule } from './modules/complaint_violation/complaint_violation.module';
-// Future modules can be imported here
 
 @Module({
   imports: [
@@ -59,4 +58,4 @@ import { ComplaintViolationModule } from './modules/complaint_violation/complain
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

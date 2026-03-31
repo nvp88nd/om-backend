@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
+import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 
 @Entity('user_otps')
 export class UserOtp {
@@ -12,7 +12,7 @@ export class UserOtp {
     code: string;
 
     @Column()
-    type: 'VERIFY_PHONE' | 'RESET_PASSWORD';
+    type: 'VERIFY_PHONE' | 'VERIFY_EMAIL' | 'RESET_PASSWORD';
 
     @Column()
     expires_at: Date;
