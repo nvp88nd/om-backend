@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Param, UseGuards, ParseUUIDPipe, Patch } from '@nestjs/common';
 import { ChatService } from './chat.service';
-import { CreateRoomDto } from './dto/chat.dto';
+import { CreateRoomDto, SendMessageDto } from './dto/chat.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -33,5 +33,13 @@ export class ChatController {
     @Param('id', ParseUUIDPipe) roomId: string
   ) {
     return this.chatService.markAsRead(roomId, userId);
+  }
+
+  @Post('messages')
+  sendMessage(
+    @CurrentUser('id') userId: string,
+    @Body() dto: SendMessageDto,
+  ) {
+    return this.chatService.saveMessage(userId, dto);
   }
 }

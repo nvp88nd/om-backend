@@ -7,6 +7,8 @@ import { ShopVerification } from './entities/shop-verification.entity';
 import { CreateShopDto } from './dto/create-shop.dto';
 import { UpdateShopDto } from './dto/update-shop.dto';
 import { User } from '../auth/entities/user.entity';
+import { Withdrawal } from '../order/entities/withdrawal.entity';
+import { WalletTransaction } from '../order/entities/wallet_transaction.entity';
 
 @Injectable()
 export class ShopService {
@@ -19,6 +21,10 @@ export class ShopService {
     private readonly verificationRepository: Repository<ShopVerification>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Withdrawal)
+    private readonly withdrawalRepository: Repository<Withdrawal>,
+    @InjectRepository(WalletTransaction)
+    private readonly walletTransactionRepository: Repository<WalletTransaction>,
     private dataSource: DataSource,
   ) {}
 
@@ -139,5 +145,70 @@ export class ShopService {
   async getWallet(userId: string) {
     const shop = await this.findByUserId(userId);
     return shop.wallet;
+  }
+
+  async getWithdrawals(userId: string) {
+    const shop = await this.findByUserId(userId);
+    return this.withdrawalRepository.find({
+      where: { shop_id: shop.id },
+      order: { created_at: 'DESC' },
+    });
+  }
+
+  async requestWithdrawal(userId: string, amountInput: number) {
+    const amount = Number(amountInput);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Withdrawal amount must be greater than 0');
+    }
+
+    const shop = await this.findByUserId(userId);
+    const wallet = await this.walletRepository.findOne({ where: { shop_id: shop.id } });
+    if (!wallet) {
+      throw new NotFoundException('Shop wallet not found');
+    }
+
+    const currentBalance = Number(wallet.balance || 0);
+    if (currentBalance < amount) {
+      throw new BadRequestException('Insufficient wallet balance');
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      wallet.balance = Number((currentBalance - amount).toFixed(2));
+      await queryRunner.manager.save(wallet);
+
+      const withdrawal = queryRunner.manager.create(Withdrawal, {
+        shop_id: shop.id,
+        amount,
+        status: 0,
+      });
+      const savedWithdrawal = await queryRunner.manager.save(withdrawal);
+
+      const transaction = queryRunner.manager.create(WalletTransaction, {
+        shop_id: shop.id,
+        type: 'OUT',
+        amount,
+        reference_id: `WITHDRAWAL:${savedWithdrawal.id}`,
+      });
+      await queryRunner.manager.save(transaction);
+
+      await queryRunner.commitTransaction();
+      return {
+        message: 'Withdrawal request created',
+        withdrawal: savedWithdrawal,
+        wallet: {
+          shop_id: wallet.shop_id,
+          balance: Number(wallet.balance),
+        },
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 }

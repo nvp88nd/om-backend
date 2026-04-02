@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, UseGuards, ParseUUIDPipe, Ht
 import { ShopService } from './shop.service';
 import { CreateShopDto } from './dto/create-shop.dto';
 import { UpdateShopDto } from './dto/update-shop.dto';
+import { CreateWithdrawalDto } from './dto/withdrawal.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -35,6 +36,21 @@ export class ShopController {
   @Get('wallet')
   getWallet(@CurrentUser('id') userId: string) {
     return this.shopService.getWallet(userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('wallet/withdrawals')
+  getWithdrawals(@CurrentUser('id') userId: string) {
+    return this.shopService.getWithdrawals(userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('wallet/withdrawals')
+  requestWithdrawal(
+    @CurrentUser('id') userId: string,
+    @Body() dto: CreateWithdrawalDto,
+  ) {
+    return this.shopService.requestWithdrawal(userId, dto.amount);
   }
 
   @Get(':id')

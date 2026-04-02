@@ -9,6 +9,8 @@ import { Payment } from './entities/payment.entity';
 import { ProductVariant } from '../product/entities/product-variant.entity';
 import { UserAddress } from '../auth/entities/user_address.entity';
 import { Shop } from '../shop/entities/shop.entity';
+import { Cart } from '../cart/entities/cart.entity';
+import { CartItem } from '../cart/entities/cart-item.entity';
 
 @Module({
   imports: [
@@ -20,6 +22,8 @@ import { Shop } from '../shop/entities/shop.entity';
       ProductVariant,
       UserAddress,
       Shop,
+      Cart,
+      CartItem,
     ]),
   ],
   controllers: [OrderController],

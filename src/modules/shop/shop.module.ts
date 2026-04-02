@@ -7,6 +7,8 @@ import { ShopWallet } from './entities/shop-wallet.entity';
 import { ShopVerification } from './entities/shop-verification.entity';
 import { ShopWarning } from './entities/shop_warning.entity';
 import { User } from '../auth/entities/user.entity';
+import { Withdrawal } from '../order/entities/withdrawal.entity';
+import { WalletTransaction } from '../order/entities/wallet_transaction.entity';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { User } from '../auth/entities/user.entity';
       ShopVerification,
       ShopWarning,
       User,
+      Withdrawal,
+      WalletTransaction,
     ]),
   ],
   controllers: [ShopController],

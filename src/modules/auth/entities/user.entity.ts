@@ -28,12 +28,12 @@ export class User {
     @Column({ type: 'text', nullable: true })
     avatar_url: string;
 
-    // 0: đk chưa xác thực email -> cho phép ghi đè, 1 đã xác thực email, 2 khóa, ...
+    // 0: registered but email not verified, 1: active, 2: locked, ...
     @Column({ type: 'smallint', default: 0 })
     status: number;
 
-    @Column({ nullable: true })
-    lock_reason: string;
+    @Column({ type: 'varchar', length: 255, nullable: true })
+    lock_reason: string | null;
 
     @ManyToOne(() => Role)
     @JoinColumn({ name: 'role_id' })

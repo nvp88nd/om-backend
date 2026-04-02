@@ -17,24 +17,84 @@ export class CartService {
     private readonly variantRepository: Repository<ProductVariant>,
   ) {}
 
-  async getCart(userId: string) {
+  private async getOrCreateCartEntity(userId: string) {
     let cart = await this.cartRepository.findOne({
       where: { user: { id: userId } },
-      relations: ['items', 'items.variant', 'items.variant.product', 'items.variant.attributes', 'items.variant.attributes.attributeValue'],
     });
 
     if (!cart) {
       cart = this.cartRepository.create({ user: { id: userId } as any });
       await this.cartRepository.save(cart);
-      cart.items = [];
     }
 
     return cart;
   }
 
+  private async loadCartWithDetails(userId: string) {
+    const cart = await this.getOrCreateCartEntity(userId);
+    return this.cartRepository.findOne({
+      where: { id: cart.id },
+      relations: [
+        'items',
+        'items.variant',
+        'items.variant.product',
+        'items.variant.product.images',
+        'items.variant.product.shop',
+        'items.variant.attributes',
+        'items.variant.attributes.attributeValue',
+      ],
+    });
+  }
+
+  private mapCartResponse(cart: Cart | null) {
+    const items = (cart?.items ?? []).map((item) => {
+      const variant = item.variant;
+      const product = variant?.product;
+      const mainImage =
+        product?.images?.find((img) => img.is_main)?.image_url ??
+        product?.images?.[0]?.image_url;
+
+      const variantName = (variant?.attributes ?? [])
+        .map((attribute) => attribute.attributeValue?.value)
+        .filter(Boolean)
+        .join(', ');
+
+      const unitPrice = Number(variant?.price ?? 0);
+      const stock = Number(variant?.stock ?? 0);
+
+      return {
+        id: product?.id ?? variant?.id ?? item.variant_id,
+        variant_id: item.variant_id,
+        quantity: Number(item.quantity),
+        product_name: product?.name ?? 'Sản phẩm',
+        product_image: mainImage,
+        variant_name: variantName || 'Mặc định',
+        price: unitPrice,
+        stock,
+      };
+    });
+
+    const total_items = items.reduce((sum, item) => sum + item.quantity, 0);
+    const total_amount = items.reduce(
+      (sum, item) => sum + item.quantity * item.price,
+      0,
+    );
+
+    return {
+      items,
+      total_items,
+      total_amount,
+    };
+  }
+
+  async getCart(userId: string) {
+    const cart = await this.loadCartWithDetails(userId);
+    return this.mapCartResponse(cart);
+  }
+
   async addItem(userId: string, addToCartDto: AddToCartDto) {
     const { variant_id, quantity } = addToCartDto;
-    const cart = await this.getCart(userId);
+    const cart = await this.getOrCreateCartEntity(userId);
 
     const variant = await this.variantRepository.findOne({
       where: { id: variant_id },
@@ -73,7 +133,7 @@ export class CartService {
 
   async updateItem(userId: string, updateCartItemDto: UpdateCartItemDto) {
     const { variant_id, quantity } = updateCartItemDto;
-    const cart = await this.getCart(userId);
+    const cart = await this.getOrCreateCartEntity(userId);
 
     const cartItem = await this.cartItemRepository.findOne({
       where: { cart_id: cart.id, variant_id },
@@ -98,7 +158,7 @@ export class CartService {
   }
 
   async removeItem(userId: string, variantId: string) {
-    const cart = await this.getCart(userId);
+    const cart = await this.getOrCreateCartEntity(userId);
 
     const cartItem = await this.cartItemRepository.findOne({
       where: { cart_id: cart.id, variant_id: variantId },
@@ -113,7 +173,7 @@ export class CartService {
   }
 
   async clearCart(userId: string) {
-    const cart = await this.getCart(userId);
+    const cart = await this.getOrCreateCartEntity(userId);
     await this.cartItemRepository.delete({ cart_id: cart.id });
     return { message: 'Cart cleared successfully' };
   }
