@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 
@@ -12,19 +12,31 @@ export class PermissionsGuard implements CanActivate {
       context.getClass(),
     ]);
 
-    if (!requiredPermissions) {
+    if (!requiredPermissions || requiredPermissions.length === 0) {
       return true;
     }
 
     const { user } = context.switchToHttp().getRequest();
 
-    if (!user || !user.role || !user.role.rolePermissions) {
+    if (!user || !user.role) {
       return false;
     }
 
-    const userPermissions = user.role.rolePermissions.map((rp: any) => rp.permission.code);
+    // SUPER_ADMIN has all permissions
+    if (user.role.code === 'SUPER_ADMIN') {
+      return true;
+    }
+
+    const userPermissions = user.role.rolePermissions?.map((rp: any) => rp.permission?.code) || [];
     
-    // Check if user has all required permissions
-    return requiredPermissions.every(permission => userPermissions.includes(permission));
+    const hasPermission = requiredPermissions.every((permission) => 
+      userPermissions.includes(permission)
+    );
+
+    if (!hasPermission) {
+      throw new ForbiddenException('You do not have the required permissions to access this resource');
+    }
+
+    return true;
   }
 }

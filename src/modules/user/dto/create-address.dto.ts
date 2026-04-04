@@ -19,7 +19,7 @@ export class CreateAddressDto {
 
   @ValidateIf((obj) => !obj.receiver_phone)
   @IsNotEmpty()
-  @IsPhoneNumber('VN')
+  // @IsPhoneNumber('VN')
   phone_number?: string;
 
   @IsNotEmpty()

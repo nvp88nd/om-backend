@@ -12,7 +12,7 @@ export class ContentSystemService {
     private readonly bannerRepository: Repository<Banner>,
     @InjectRepository(BannedKeyword)
     private readonly keywordRepository: Repository<BannedKeyword>,
-  ) {}
+  ) { }
 
   // Banner Management
   async createBanner(dto: CreateBannerDto) {
@@ -59,7 +59,7 @@ export class ContentSystemService {
 
   async findAllKeywords() {
     const keywords = await this.keywordRepository.find();
-    return keywords.map(k => k.keyword);
+    return keywords;
   }
 
   async removeKeyword(keyword: string) {
@@ -71,6 +71,6 @@ export class ContentSystemService {
   async checkContent(content: string): Promise<boolean> {
     const keywords = await this.findAllKeywords();
     const lowerContent = content.toLowerCase();
-    return keywords.some(k => lowerContent.includes(k.toLowerCase()));
+    return keywords.some(k => lowerContent.includes(k.keyword.toLowerCase()));
   }
 }

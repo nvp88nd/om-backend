@@ -10,6 +10,8 @@ import { Product } from '../modules/product/entities/product.entity';
 import { ProductVariant } from '../modules/product/entities/product-variant.entity';
 import { ProductImage } from '../modules/product/entities/product-image.entity';
 import { VariantAttribute } from '../modules/product/entities/variant-attribute.entity';
+import { Permission } from '../modules/permission/entities/permission.entity';
+import { RolePermission } from '../modules/permission/entities/role-permission.entity';
 import * as bcrypt from 'bcrypt';
 
 async function seed() {
@@ -27,9 +29,45 @@ async function seed() {
       { id: 1, code: 'ADMIN', name: 'Administrator' },
       { id: 2, code: 'SHOP_OWNER', name: 'Shop Owner' },
       { id: 3, code: 'USER', name: 'Customer' },
+      { id: 4, code: 'SUPER_ADMIN', name: 'Super Administrator' },
     ];
     for (const r of roles) {
       await queryRunner.manager.save(Role, r);
+    }
+
+    // 1.1 Seed Permissions
+    console.log('Seeding permissions...');
+    const permissions = [
+      { id: 1001, code: 'USER_VIEW', description: 'View user list' },
+      { id: 1002, code: 'USER_EDIT', description: 'Edit user information' },
+      { id: 1003, code: 'USER_DELETE', description: 'Delete or lock user' },
+      { id: 2001, code: 'SHOP_VIEW', description: 'View shop list' },
+      { id: 2002, code: 'SHOP_APPROVE', description: 'Approve or reject shop' },
+      { id: 2003, code: 'SHOP_LOCK', description: 'Lock or unlock shop' },
+      { id: 3001, code: 'PRODUCT_VIEW', description: 'View product list' },
+      { id: 3002, code: 'PRODUCT_APPROVE', description: 'Approve or reject product' },
+      { id: 3003, code: 'PRODUCT_DELETE', description: 'Delete product' },
+      { id: 4001, code: 'ORDER_VIEW', description: 'View order list' },
+      { id: 4002, code: 'ORDER_MANAGE', description: 'Manage order status' },
+      { id: 5001, code: 'COMPLAINT_VIEW', description: 'View complaints' },
+      { id: 5002, code: 'COMPLAINT_PROCESS', description: 'Process complaints' },
+      { id: 6001, code: 'FINANCE_VIEW', description: 'View finance reports' },
+      { id: 6002, code: 'WITHDRAWAL_PROCESS', description: 'Process withdrawals' },
+      { id: 7001, code: 'CONTENT_MANAGE', description: 'Manage banners and keywords' },
+    ];
+
+    // const PermissionEntity = (await import('../modules/permission/entities/permission.entity.js')).Permission;
+    // const RolePermissionEntity = (await import('../modules/permission/entities/role-permission.entity.js')).RolePermission;
+
+    for (const p of permissions) {
+      await queryRunner.manager.save(Permission, p);
+    }
+
+    // 1.2 Assign all permissions to SUPER_ADMIN (id: 4) and ADMIN (id: 1)
+    console.log('Assigning permissions to roles...');
+    for (const p of permissions) {
+      await queryRunner.manager.save(RolePermission, { role_id: 1, permission_id: p.id });
+      await queryRunner.manager.save(RolePermission, { role_id: 4, permission_id: p.id });
     }
 
     // 2. Seed Users
