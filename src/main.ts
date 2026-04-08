@@ -26,7 +26,15 @@ async function bootstrap() {
       const status = res.statusCode;
       const level = status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info';
 
-      console.log(`${level}: ${req.method} ${req.originalUrl} ${status} - ${ms} ms`);
+      const colors = {
+        error: '\x1b[31m', // Đỏ
+        warn: '\x1b[33m', // Vàng
+        info: '\x1b[32m', // Xanh lá
+        reset: '\x1b[0m'   // Reset về màu mặc định
+      };
+      const color = colors[level];
+
+      console.log(`${color}${level}${colors.reset}: ${req.method} ${req.originalUrl} ${status} - ${ms} ms`);
     });
 
     next();

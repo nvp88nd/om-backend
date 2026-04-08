@@ -15,7 +15,6 @@ export class ProductController {
   // Public: Get all approved products with filtering/pagination
   @Get()
   findAll(@Query() filter: ProductFilterDto) {
-    console.log('test');
     return this.productService.findAll(filter);
   }
 
