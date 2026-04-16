@@ -13,3 +13,10 @@ export enum PaymentStatus {
   FAILED = 2,
   REFUNDED = 3,
 }
+
+export enum ReturnRequestStatus {
+  PENDING = 0,
+  APPROVED = 1,
+  REJECTED = 2,
+  REFUNDED = 3,
+}

@@ -19,7 +19,7 @@ export class ReviewService {
     private readonly productRepository: Repository<Product>,
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
-  ) {}
+  ) { }
 
   async create(userId: string, createReviewDto: CreateReviewDto) {
     const { product_id, rating, comment } = createReviewDto;
@@ -52,7 +52,7 @@ export class ReviewService {
         }
       },
     });
-    
+
     // For this prototype, we'll allow all reviews to make it easier to test, 
     // but in a real app, we'd uncomment the check below:
     /*
@@ -146,5 +146,13 @@ export class ReviewService {
     const notHelpful = votes.filter(v => v.value === -1).length;
 
     return { helpful, notHelpful };
+  }
+
+  async getMyVote(userId: string, reviewId: string) {
+    const vote = await this.voteRepository.findOne({
+      where: { review_id: reviewId, user_id: userId },
+    });
+
+    return { value: vote?.value ?? 0 };
   }
 }

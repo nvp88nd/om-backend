@@ -1,9 +1,10 @@
 import {
     Entity, PrimaryGeneratedColumn, Column,
-    ManyToOne, JoinColumn
+    ManyToOne, JoinColumn, OneToMany
 } from 'typeorm';
 import { OrderShop } from './order-shop.entity';
 import { ProductVariant } from '../../product/entities/product-variant.entity';
+import { ReturnRequest } from './return-request.entity';
 
 @Entity('order_items')
 export class OrderItem {
@@ -26,4 +27,7 @@ export class OrderItem {
 
     @Column({ type: 'decimal', precision: 14, scale: 2 })
     subtotal: number;
+
+    @OneToMany(() => ReturnRequest, returnRequest => returnRequest.orderItem)
+    returnRequests: ReturnRequest[];
 }

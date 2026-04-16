@@ -1,1 +1,1 @@
-export class CreatePromotionDto {}
+export { CreatePromotionDto } from './promotion.dto';

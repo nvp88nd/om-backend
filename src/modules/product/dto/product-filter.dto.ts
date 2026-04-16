@@ -18,6 +18,10 @@ export class ProductFilterDto {
   category_id?: string;
 
   @IsOptional()
+  @IsString()
+  shop_id?: string;
+
+  @IsOptional()
   @IsNumber()
   @Min(0)
   @Type(() => Number)

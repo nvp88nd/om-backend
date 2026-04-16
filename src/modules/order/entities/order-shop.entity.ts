@@ -22,6 +22,12 @@ export class OrderShop {
     @Column({ type: 'decimal', precision: 14, scale: 2 })
     subtotal: number;
 
+    @Column({ type: 'decimal', precision: 14, scale: 2, default: 0 })
+    discount_amount: number;
+
+    @Column({ type: 'uuid', nullable: true })
+    promotion_id?: string;
+
     @Column({ type: 'smallint' })
     status: number;
 

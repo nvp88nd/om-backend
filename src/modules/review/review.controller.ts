@@ -6,7 +6,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @Controller('reviews')
 export class ReviewController {
-  constructor(private readonly reviewService: ReviewService) {}
+  constructor(private readonly reviewService: ReviewService) { }
 
   @UseGuards(JwtAuthGuard)
   @Post()
@@ -53,5 +53,14 @@ export class ReviewController {
   @Get(':id/votes')
   getVotes(@Param('id', ParseUUIDPipe) id: string) {
     return this.reviewService.getVoteStats(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get(':id/my-vote')
+  getMyVote(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.reviewService.getMyVote(userId, id);
   }
 }

@@ -21,7 +21,7 @@ export class ProductService {
     @InjectRepository(Category)
     private readonly categoryRepository: Repository<Category>,
     private dataSource: DataSource,
-  ) {}
+  ) { }
 
   async create(userId: string, createProductDto: CreateProductDto) {
     const shop = await this.shopRepository.findOne({ where: { owner: { id: userId } } });
@@ -59,7 +59,7 @@ export class ProductService {
 
       // 2. Create Images
       if (createProductDto.images && createProductDto.images.length > 0) {
-        const images = createProductDto.images.map(img => 
+        const images = createProductDto.images.map(img =>
           queryRunner.manager.create(ProductImage, {
             product: savedProduct,
             image_url: img.image_url,
@@ -81,7 +81,7 @@ export class ProductService {
           const savedVariant = await queryRunner.manager.save(variant);
 
           if (variantDto.attribute_value_ids && variantDto.attribute_value_ids.length > 0) {
-            const variantAttributes = variantDto.attribute_value_ids.map(attrValId => 
+            const variantAttributes = variantDto.attribute_value_ids.map(attrValId =>
               queryRunner.manager.create(VariantAttribute, {
                 variant_id: savedVariant.id,
                 attribute_value_id: attrValId,
@@ -103,9 +103,9 @@ export class ProductService {
   }
 
   async findAll(filter: ProductFilterDto) {
-    const { 
-      search, category_id, min_price, max_price, status, 
-      page = 1, limit = 10, sort_by = 'created_at', sort_order = 'DESC' 
+    const {
+      search, category_id, shop_id, min_price, max_price, status,
+      page = 1, limit = 10, sort_by = 'created_at', sort_order = 'DESC'
     } = filter;
 
     const query = this.productRepository.createQueryBuilder('product')
@@ -117,13 +117,17 @@ export class ProductService {
       .orderBy(`product.${sort_by}`, sort_order);
 
     if (search) {
-      query.andWhere('(product.name LIKE :search OR product.description LIKE :search OR product.slug LIKE :search)', { 
-        search: `%${search}%` 
+      query.andWhere('(product.name LIKE :search OR product.description LIKE :search OR product.slug LIKE :search)', {
+        search: `%${search}%`
       });
     }
 
     if (category_id) {
       query.andWhere('product.category_id = :category_id', { category_id });
+    }
+
+    if (shop_id) {
+      query.andWhere('product.shop_id = :shop_id', { shop_id });
     }
 
     if (min_price !== undefined) {
@@ -159,9 +163,9 @@ export class ProductService {
       throw new BadRequestException('User does not have a shop');
     }
 
-    const { 
-      search, category_id, min_price, max_price, status, 
-      page = 1, limit = 10, sort_by = 'created_at', sort_order = 'DESC' 
+    const {
+      search, category_id, min_price, max_price, status,
+      page = 1, limit = 10, sort_by = 'created_at', sort_order = 'DESC'
     } = filter;
 
     const query = this.productRepository.createQueryBuilder('product')
@@ -199,11 +203,11 @@ export class ProductService {
     const product = await this.productRepository.findOne({
       where: { id },
       relations: [
-        'category', 
-        'images', 
-        'variants', 
-        'variants.attributes', 
-        'variants.attributes.attributeValue', 
+        'category',
+        'images',
+        'variants',
+        'variants.attributes',
+        'variants.attributes.attributeValue',
         'variants.attributes.attributeValue.attribute',
         'shop'
       ],
@@ -212,6 +216,64 @@ export class ProductService {
       throw new NotFoundException('Product not found');
     }
     return product;
+  }
+
+  async findSimilar(id: string, limitInput?: number) {
+    const product = await this.productRepository.findOne({
+      where: { id },
+      relations: ['category'],
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    const limit = Number.isFinite(limitInput) && Number(limitInput) > 0
+      ? Math.min(Math.floor(Number(limitInput)), 24)
+      : 6;
+
+    const similarInCategory = await this.productRepository.find({
+      where: {
+        category: { id: product.category?.id },
+        status: ProductStatus.APPROVED,
+      },
+      relations: ['category', 'images', 'shop'],
+      order: { created_at: 'DESC' },
+      take: limit + 1,
+    });
+
+    const filteredPrimary = similarInCategory.filter((item) => item.id !== id).slice(0, limit);
+
+    if (filteredPrimary.length >= limit) {
+      return filteredPrimary;
+    }
+
+    const fallback = await this.productRepository.find({
+      where: {
+        status: ProductStatus.APPROVED,
+      },
+      relations: ['category', 'images', 'shop'],
+      order: { created_at: 'DESC' },
+      take: limit + 12,
+    });
+
+    const existingIds = new Set(filteredPrimary.map((item) => item.id));
+    const merged = [...filteredPrimary];
+
+    for (const item of fallback) {
+      if (item.id === id || existingIds.has(item.id)) {
+        continue;
+      }
+
+      merged.push(item);
+      existingIds.add(item.id);
+
+      if (merged.length >= limit) {
+        break;
+      }
+    }
+
+    return merged;
   }
 
   async update(userId: string, id: string, updateProductDto: UpdateProductDto) {
@@ -223,7 +285,7 @@ export class ProductService {
     if (!product) {
       throw new NotFoundException('Product not found');
     }
-    
+
     // Authorization check
     const shop = await this.shopRepository.findOne({ where: { owner: { id: userId } } });
     if (!shop || product.shop.id !== shop.id) {
@@ -231,7 +293,7 @@ export class ProductService {
     }
 
     if (updateProductDto.name) product.name = updateProductDto.name;
-    
+
     if (updateProductDto.slug && updateProductDto.slug !== product.slug) {
       const existingProduct = await this.productRepository.findOne({ where: { slug: updateProductDto.slug } });
       if (existingProduct) {

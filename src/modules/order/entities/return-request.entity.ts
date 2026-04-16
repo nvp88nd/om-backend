@@ -1,9 +1,10 @@
 import {
     Entity, PrimaryGeneratedColumn, Column,
-    ManyToOne, JoinColumn, CreateDateColumn
+    ManyToOne, JoinColumn, CreateDateColumn, OneToMany
 } from 'typeorm';
 import { OrderItem } from './order-item.entity';
 import { User } from '../../auth/entities/user.entity';
+import { Refund } from './refund.entity';
 
 @Entity('return_requests')
 export class ReturnRequest {
@@ -26,4 +27,7 @@ export class ReturnRequest {
 
     @CreateDateColumn()
     created_at: Date;
+
+    @OneToMany(() => Refund, refund => refund.returnRequest)
+    refunds: Refund[];
 }

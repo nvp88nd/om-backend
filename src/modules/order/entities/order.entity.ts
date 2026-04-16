@@ -18,11 +18,38 @@ export class Order {
     @Column({ type: 'decimal', precision: 14, scale: 2 })
     total_amount: number;
 
+    @Column({ type: 'decimal', precision: 14, scale: 2, default: 0 })
+    discount_amount: number;
+
+    @Column({ type: 'uuid', nullable: true })
+    promotion_id?: string;
+
     @Column({ type: 'smallint' })
     status: number;
 
     @Column({ length: 50 })
     payment_method: string;
+
+    @Column({ type: 'char', length: 36, nullable: true })
+    shipping_address_id?: string | null;
+
+    @Column({ type: 'varchar', length: 150, nullable: true })
+    shipping_receiver_name?: string | null;
+
+    @Column({ type: 'varchar', length: 20, nullable: true })
+    shipping_receiver_phone?: string | null;
+
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    shipping_province?: string | null;
+
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    shipping_district?: string | null;
+
+    @Column({ type: 'varchar', length: 100, nullable: true })
+    shipping_ward?: string | null;
+
+    @Column({ type: 'text', nullable: true })
+    shipping_detail_address?: string | null;
 
     @CreateDateColumn()
     created_at: Date;

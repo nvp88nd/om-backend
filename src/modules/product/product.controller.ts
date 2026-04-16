@@ -29,6 +29,15 @@ export class ProductController {
   }
 
   // Public: Get product details
+  @Get(':id/similar')
+  findSimilar(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.productService.findSimilar(id, limit ? Number(limit) : undefined);
+  }
+
+  // Public: Get product details
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.productService.findOne(id);
