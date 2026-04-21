@@ -7,10 +7,10 @@ export class UserVoucher {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ type: 'char', length: 36 })
   user_id: string;
 
-  @Column()
+  @Column({ type: 'char', length: 36 })
   promotion_id: string;
 
   @Column({ type: 'int', default: 0 })

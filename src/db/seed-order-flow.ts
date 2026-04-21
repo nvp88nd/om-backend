@@ -31,7 +31,7 @@ async function ensureRole(
 
 async function ensureUser(
   manager: any,
-  payload: { email: string; full_name: string; role: Role; status?: number },
+  payload: { email: string; full_name: string; role: Role; status?: number; avatar_url?: string },
 ) {
   let user = await manager.findOne(User, { where: { email: payload.email } });
   if (user) {
@@ -45,6 +45,7 @@ async function ensureUser(
     full_name: payload.full_name,
     status: payload.status ?? 1,
     role: payload.role,
+    avatar_url: payload.avatar_url,
   });
   return manager.save(User, user);
 }
@@ -58,6 +59,7 @@ async function ensureShop(
     description: string;
     address: string;
     status?: number;
+    logo_url?: string;
   },
 ) {
   let shop = await manager.findOne(Shop, { where: { slug: payload.slug } });
@@ -69,6 +71,7 @@ async function ensureShop(
       description: payload.description,
       address: payload.address,
       status: payload.status ?? 1,
+      logo_url: payload.logo_url,
     });
     shop = await manager.save(Shop, shop);
   }
@@ -220,6 +223,8 @@ async function seedOrderHistory(
   shopB: Shop,
   variantA: ProductVariant,
   variantB: ProductVariant,
+  variantC: ProductVariant,
+  variantD: ProductVariant,
 ) {
   const existingCount = await manager.count(Order, {
     where: { user: { id: customer.id } },
@@ -305,6 +310,24 @@ async function seedOrderHistory(
     paymentStatus: PaymentStatus.PENDING,
     paymentMethod: 'VNPAY',
   });
+
+  await createOrderWithOneShop({
+    variant: variantC,
+    shop: shopA,
+    quantity: 2,
+    orderStatus: OrderStatus.SHIPPING,
+    paymentStatus: PaymentStatus.PAID,
+    paymentMethod: 'MOMO',
+  });
+
+  await createOrderWithOneShop({
+    variant: variantD,
+    shop: shopB,
+    quantity: 1,
+    orderStatus: OrderStatus.CANCELLED,
+    paymentStatus: PaymentStatus.FAILED,
+    paymentMethod: 'VNPAY',
+  });
 }
 
 async function seedOrderFlow() {
@@ -335,6 +358,7 @@ async function seedOrderFlow() {
       full_name: 'System Admin',
       role: roleAdmin,
       status: 1,
+      avatar_url: '/uploads/seed-avatar-admin.png',
     });
 
     const shopOwnerA = await ensureUser(queryRunner.manager, {
@@ -342,6 +366,7 @@ async function seedOrderFlow() {
       full_name: 'Shop Owner A',
       role: roleShopOwner,
       status: 1,
+      avatar_url: '/uploads/seed-avatar-seller-a.png',
     });
 
     const shopOwnerB = await ensureUser(queryRunner.manager, {
@@ -349,6 +374,7 @@ async function seedOrderFlow() {
       full_name: 'Shop Owner B',
       role: roleShopOwner,
       status: 1,
+      avatar_url: '/uploads/seed-avatar-seller-b.png',
     });
 
     const customer = await ensureUser(queryRunner.manager, {
@@ -356,6 +382,7 @@ async function seedOrderFlow() {
       full_name: 'Lucky Customer',
       role: roleUser,
       status: 1,
+      avatar_url: '/uploads/seed-avatar-user.png',
     });
 
     const shopA = await ensureShop(queryRunner.manager, {
@@ -365,6 +392,7 @@ async function seedOrderFlow() {
       description: 'Shop test cong nghe',
       address: '123 Tech Street',
       status: 1,
+      logo_url: '/uploads/seed-shop-logo-a.png',
     });
 
     const shopB = await ensureShop(queryRunner.manager, {
@@ -374,20 +402,31 @@ async function seedOrderFlow() {
       description: 'Shop test thoi trang',
       address: '456 Fashion Avenue',
       status: 1,
+      logo_url: '/uploads/seed-shop-logo-b.png',
     });
 
-    const category = await ensureCategory(queryRunner.manager, {
+    const categoryElectronics = await ensureCategory(queryRunner.manager, {
       name: 'Electronics',
       slug: 'electronics',
     });
 
+    const categoryFashion = await ensureCategory(queryRunner.manager, {
+      name: 'Fashion',
+      slug: 'fashion',
+    });
+
+    const categoryHome = await ensureCategory(queryRunner.manager, {
+      name: 'Home & Living',
+      slug: 'home-living',
+    });
+
     const seededA = await ensureProductWithVariants(queryRunner.manager, {
       shop: shopA,
-      category,
+      category: categoryElectronics,
       name: 'Gaming Mouse X2',
       slug: 'gaming-mouse-x2',
       base_price: 690000,
-      image_url: 'https://placehold.co/600x400/png?text=Gaming+Mouse+X2',
+      image_url: '/uploads/seed-product-mouse.png',
       variants: [
         { sku: 'GMX2-BLACK', price: 690000, stock: 50 },
         { sku: 'GMX2-WHITE', price: 720000, stock: 40 },
@@ -396,14 +435,66 @@ async function seedOrderFlow() {
 
     const seededB = await ensureProductWithVariants(queryRunner.manager, {
       shop: shopB,
-      category,
+      category: categoryFashion,
       name: 'Backpack Urban Pro',
       slug: 'backpack-urban-pro',
       base_price: 490000,
-      image_url: 'https://placehold.co/600x400/png?text=Backpack+Urban+Pro',
+      image_url: '/uploads/seed-product-backpack.png',
       variants: [
         { sku: 'BUP-BLACK', price: 490000, stock: 60 },
         { sku: 'BUP-GREY', price: 510000, stock: 45 },
+      ],
+    });
+
+    const seededC = await ensureProductWithVariants(queryRunner.manager, {
+      shop: shopA,
+      category: categoryElectronics,
+      name: 'Mechanical Keyboard K87',
+      slug: 'mechanical-keyboard-k87',
+      base_price: 1290000,
+      image_url: '/uploads/seed-product-keyboard.png',
+      variants: [
+        { sku: 'KBK87-BLACK', price: 1290000, stock: 35 },
+        { sku: 'KBK87-WHITE', price: 1350000, stock: 30 },
+      ],
+    });
+
+    const seededD = await ensureProductWithVariants(queryRunner.manager, {
+      shop: shopB,
+      category: categoryHome,
+      name: 'Desk Lamp Minimal',
+      slug: 'desk-lamp-minimal',
+      base_price: 390000,
+      image_url: '/uploads/seed-product-lamp.png',
+      variants: [
+        { sku: 'DLM-WARM', price: 390000, stock: 55 },
+        { sku: 'DLM-WHITE', price: 410000, stock: 48 },
+      ],
+    });
+
+    await ensureProductWithVariants(queryRunner.manager, {
+      shop: shopA,
+      category: categoryHome,
+      name: 'Air Purifier Mini',
+      slug: 'air-purifier-mini',
+      base_price: 1790000,
+      image_url: '/uploads/seed-product-purifier.png',
+      variants: [
+        { sku: 'APM-STANDARD', price: 1790000, stock: 28 },
+        { sku: 'APM-PRO', price: 2090000, stock: 22 },
+      ],
+    });
+
+    await ensureProductWithVariants(queryRunner.manager, {
+      shop: shopB,
+      category: categoryFashion,
+      name: 'Sneaker Street V2',
+      slug: 'sneaker-street-v2',
+      base_price: 990000,
+      image_url: '/uploads/seed-product-sneaker.png',
+      variants: [
+        { sku: 'SSV2-42', price: 990000, stock: 40 },
+        { sku: 'SSV2-43', price: 990000, stock: 42 },
       ],
     });
 
@@ -421,6 +512,8 @@ async function seedOrderFlow() {
       shopB,
       seededA.variants[1],
       seededB.variants[1],
+      seededC.variants[0],
+      seededD.variants[0],
     );
 
     await queryRunner.commitTransaction();

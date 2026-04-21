@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
 import { Product } from './product.entity';
 
 @Entity('product_images')
@@ -15,4 +15,7 @@ export class ProductImage {
 
     @Column({ type: 'boolean', default: false })
     is_main: boolean;
+
+    @CreateDateColumn()
+    created_at: Date;
 }

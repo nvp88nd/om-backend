@@ -15,6 +15,7 @@ import { Attribute } from './entities/attribute.entity';
 import { AttributeValue } from './entities/attribute-value.entity';
 import { VariantAttribute } from './entities/variant-attribute.entity';
 import { Shop } from '../shop/entities/shop.entity';
+import { ContentSystemModule } from '../content_system/content_system.module';
 
 @Module({
   imports: [
@@ -28,9 +29,10 @@ import { Shop } from '../shop/entities/shop.entity';
       VariantAttribute,
       Shop,
     ]),
+    ContentSystemModule,
   ],
   controllers: [ProductController, CategoryController, AttributeController],
   providers: [ProductService, CategoryService, AttributeService],
   exports: [ProductService],
 })
-export class ProductModule {}
+export class ProductModule { }

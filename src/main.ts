@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { config } from 'dotenv';
+import rateLimit from 'express-rate-limit';
 import { performance } from 'node:perf_hooks';
 import { AppModule } from './app.module';
 
@@ -17,6 +18,29 @@ async function bootstrap() {
   });
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+
+  app.setGlobalPrefix('api');
+
+  const authWriteLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Too many auth attempts, please try again later.' },
+  });
+
+  const authOtpLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 12,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Too many OTP attempts, please try again later.' },
+  });
+
+  app.use('/auth/login', authWriteLimiter);
+  app.use('/auth/register', authWriteLimiter);
+  app.use('/auth/verify-otp', authOtpLimiter);
+  app.use('/auth/refresh', authWriteLimiter);
 
   app.use((req, res, next) => {
     const start = performance.now();

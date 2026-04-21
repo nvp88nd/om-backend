@@ -12,10 +12,15 @@ import { ProductImage } from '../modules/product/entities/product-image.entity';
 import { VariantAttribute } from '../modules/product/entities/variant-attribute.entity';
 import { Permission } from '../modules/permission/entities/permission.entity';
 import { RolePermission } from '../modules/permission/entities/role-permission.entity';
+import { Banner } from '../modules/content_system/entities/banner.entity';
+import { Review } from '../modules/review/entities/review.entity';
+import { Promotion } from '../modules/promotion/entities/promotion.entity';
 import * as bcrypt from 'bcrypt';
 
 async function seed() {
-  await AppDataSource.initialize();
+  if (!AppDataSource.isInitialized) {
+    await AppDataSource.initialize();
+  }
   console.log('Data Source has been initialized!');
 
   const queryRunner = AppDataSource.createQueryRunner();
@@ -25,14 +30,15 @@ async function seed() {
   try {
     // 1. Seed Roles
     console.log('Seeding roles...');
-    const roles = [
+    const rolesData = [
       { id: 1, code: 'ADMIN', name: 'Administrator' },
       { id: 2, code: 'SHOP_OWNER', name: 'Shop Owner' },
       { id: 3, code: 'USER', name: 'Customer' },
       { id: 4, code: 'SUPER_ADMIN', name: 'Super Administrator' },
     ];
-    for (const r of roles) {
-      await queryRunner.manager.save(Role, r);
+    const roles: Role[] = [];
+    for (const r of rolesData) {
+      roles.push(await queryRunner.manager.save(Role, r));
     }
 
     // 1.1 Seed Permissions
@@ -56,15 +62,10 @@ async function seed() {
       { id: 7001, code: 'CONTENT_MANAGE', description: 'Manage banners and keywords' },
     ];
 
-    // const PermissionEntity = (await import('../modules/permission/entities/permission.entity.js')).Permission;
-    // const RolePermissionEntity = (await import('../modules/permission/entities/role-permission.entity.js')).RolePermission;
-
     for (const p of permissions) {
       await queryRunner.manager.save(Permission, p);
     }
 
-    // 1.2 Assign all permissions to SUPER_ADMIN (id: 4) and ADMIN (id: 1)
-    console.log('Assigning permissions to roles...');
     for (const p of permissions) {
       await queryRunner.manager.save(RolePermission, { role_id: 1, permission_id: p.id });
       await queryRunner.manager.save(RolePermission, { role_id: 4, permission_id: p.id });
@@ -75,140 +76,147 @@ async function seed() {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash('123456', salt);
 
-    const adminUser = queryRunner.manager.create(User, {
-      email: 'admin@example.com',
-      password_hash: passwordHash,
-      full_name: 'System Admin',
-      status: 1,
-      role: { id: 1 } as any,
-    });
-    await queryRunner.manager.save(adminUser);
+    const usersData = [
+      { email: 'admin@example.com', full_name: 'System Admin', role: roles[0], avatar: '/uploads/seed-avatar-admin.png' },
+      { email: 'shop@example.com', full_name: 'Tech Master', role: roles[1], avatar: '/uploads/seed-avatar-seller-a.png' },
+      { email: 'shop2@example.com', full_name: 'Fashion Icon', role: roles[1], avatar: '/uploads/seed-avatar-seller-b.png' },
+      { email: 'user@example.com', full_name: 'John Doe', role: roles[2], avatar: '/uploads/seed-avatar-user.png' },
+      { email: 'user2@example.com', full_name: 'Jane Smith', role: roles[2], avatar: '/uploads/seed-avatar-user.png' },
+    ];
 
-    const shopOwnerUser = queryRunner.manager.create(User, {
-      email: 'shop@example.com',
-      password_hash: passwordHash,
-      full_name: 'John Shop',
-      status: 1,
-      role: { id: 2 } as any,
-    });
-    await queryRunner.manager.save(shopOwnerUser);
+    const users: User[] = [];
+    for (const u of usersData) {
+      const user = queryRunner.manager.create(User, {
+        email: u.email,
+        password_hash: passwordHash,
+        full_name: u.full_name,
+        status: 1,
+        role: u.role,
+        avatar_url: u.avatar,
+      });
+      users.push(await queryRunner.manager.save(User, user));
+    }
 
-    const customerUser = queryRunner.manager.create(User, {
-      email: 'user@example.com',
-      password_hash: passwordHash,
-      full_name: 'Lucky Customer',
-      status: 1,
-      role: { id: 3 } as any,
-    });
-    await queryRunner.manager.save(customerUser);
+    // 3. Seed Shops
+    console.log('Seeding shops...');
+    const shopsData = [
+      { owner: users[1], name: 'Tech Haven Official', slug: 'tech-haven', description: 'Best gadgets in town', logo: '/uploads/seed-shop-logo-a.png' },
+      { owner: users[2], name: 'Fashion Hub', slug: 'fashion-hub', description: 'Latest trends and styles', logo: '/uploads/seed-shop-logo-b.png' },
+    ];
 
-    // 3. Seed Shop
-    console.log('Seeding shop...');
-    const testShop = queryRunner.manager.create(Shop, {
-      owner: shopOwnerUser,
-      name: 'Tech Haven',
-      slug: 'tech-haven',
-      description: 'The best place for gadgets',
-      status: 1, // Active
-      address: '123 Tech Street, Silicon Valley',
-    });
-    await queryRunner.manager.save(testShop);
+    const shops: Shop[] = [];
+    for (const s of shopsData) {
+      const shop = queryRunner.manager.create(Shop, {
+        ...s,
+        status: 1,
+        address: 'Ho Chi Minh City, Vietnam',
+        logo_url: s.logo,
+      });
+      const savedShop = await queryRunner.manager.save(Shop, shop);
+      shops.push(savedShop);
 
-    const wallet = queryRunner.manager.create(ShopWallet, {
-      shop_id: testShop.id,
-      balance: 1000000,
-    });
-    await queryRunner.manager.save(wallet);
+      await queryRunner.manager.save(ShopWallet, { shop_id: savedShop.id, balance: 5000000 });
+    }
 
     // 4. Seed Categories
     console.log('Seeding categories...');
-    const categories = [
-      { name: 'Electronics', slug: 'electronics' },
-      { name: 'Fashion', slug: 'fashion' },
-      { name: 'Home & Living', slug: 'home-living' },
+    const categoriesData = [
+      { name: 'Điện tử', slug: 'electronics', image: '/uploads/cat-electronics.png' },
+      { name: 'Thời trang', slug: 'fashion', image: '/uploads/cat-fashion.png' },
+      { name: 'Nhà cửa', slug: 'home-living', image: '/uploads/cat-home.png' },
+      { name: 'Làm đẹp', slug: 'beauty', image: '/uploads/cat-beauty.png' },
+      { name: 'Thể thao', slug: 'sports', image: '/uploads/cat-sports.png' },
+      { name: 'Sách', slug: 'books', image: '/uploads/cat-books.png' },
     ];
-    const savedCategories: Category[] = [];
-    for (const c of categories) {
+
+    const categories: Category[] = [];
+    for (const c of categoriesData) {
       const cat = queryRunner.manager.create(Category, c);
-      savedCategories.push(await queryRunner.manager.save(cat));
+      categories.push(await queryRunner.manager.save(cat));
     }
 
-    // 5. Seed Attributes
-    console.log('Seeding attributes...');
-    const colorAttr = queryRunner.manager.create(Attribute, { name: 'Color' });
-    await queryRunner.manager.save(colorAttr);
-    const sizeAttr = queryRunner.manager.create(Attribute, { name: 'Size' });
-    await queryRunner.manager.save(sizeAttr);
+    // 5. Seed Products
+    console.log('Seeding products...');
+    const productsToCreate = [
+      { shop: shops[0], category: categories[0], name: 'iPhone 15 Pro Max', price: 34990000, slug: 'iphone-15-pro-max' },
+      { shop: shops[0], category: categories[0], name: 'MacBook Air M2', price: 28500000, slug: 'macbook-air-m2' },
+      { shop: shops[0], category: categories[0], name: 'Sony WH-1000XM5', price: 8490000, slug: 'sony-wh-1000xm5' },
+      { shop: shops[1], category: categories[1], name: 'Áo thun Nam Basic', price: 250000, slug: 'ao-thun-nam-basic' },
+      { shop: shops[1], category: categories[1], name: 'Quần Jeans Slim Fit', price: 450000, slug: 'quan-jeans-slim-fit' },
+      { shop: shops[1], category: categories[1], name: 'Váy dạo phố nữ', price: 380000, slug: 'vay-dao-pho-nu' },
+      { shop: shops[0], category: categories[2], name: 'Đèn bàn thông minh', price: 750000, slug: 'den-ban-thong-minh' },
+      { shop: shops[1], category: categories[3], name: 'Son môi Matte', price: 290000, slug: 'son-moi-matte' },
+      { shop: shops[1], category: categories[4], name: 'Giày chạy bộ Pro', price: 1250000, slug: 'giay-chay-bo-pro' },
+      { shop: shops[0], category: categories[5], name: 'Sách Đắc Nhân Tâm', price: 120000, slug: 'sach-dac-nhan-tam' },
+    ];
 
-    const red = queryRunner.manager.create(AttributeValue, { attribute: colorAttr, value: 'Red' });
-    const blue = queryRunner.manager.create(AttributeValue, { attribute: colorAttr, value: 'Blue' });
-    const small = queryRunner.manager.create(AttributeValue, { attribute: sizeAttr, value: 'S' });
-    const large = queryRunner.manager.create(AttributeValue, { attribute: sizeAttr, value: 'L' });
-    await queryRunner.manager.save([red, blue, small, large]);
+    for (const p of productsToCreate) {
+      const product = queryRunner.manager.create(Product, {
+        shop: p.shop,
+        category: p.category,
+        name: p.name,
+        slug: p.slug,
+        base_price: p.price,
+        status: 2, // Approved
+        description: `Mô tả chi tiết cho sản phẩm ${p.name}. Đây là một sản phẩm chất lượng cao từ ${p.shop.name}.`,
+      });
+      const savedProduct = await queryRunner.manager.save(product);
 
-    // 6. Seed Product
-    console.log('Seeding product...');
-    const product = queryRunner.manager.create(Product, {
-      shop: testShop,
-      category: savedCategories[0],
-      name: 'Gaming Mouse G Pro',
-      slug: 'gaming-mouse-g-pro',
-      description: 'Ultra fast gaming mouse for pros',
-      base_price: 500000,
-      status: 2, // Approved
-    });
-    await queryRunner.manager.save(product);
+      await queryRunner.manager.save(ProductImage, {
+        product: savedProduct,
+        image_url: `/uploads/seed-product.png`,
+        is_main: true,
+      });
 
-    const image = queryRunner.manager.create(ProductImage, {
-      product,
-      image_url: 'https://placehold.co/600x400/png',
-      is_main: true,
-    });
-    await queryRunner.manager.save(image);
+      const variant = queryRunner.manager.create(ProductVariant, {
+        product: savedProduct,
+        sku: `${savedProduct.slug.toUpperCase()}-001`,
+        price: p.price,
+        stock: 100,
+      });
+      await queryRunner.manager.save(variant);
 
-    // Variants
-    const v1 = queryRunner.manager.create(ProductVariant, {
-      product,
-      sku: 'GPRO-RED-S',
-      price: 550000,
-      stock: 50,
-    });
-    await queryRunner.manager.save(v1);
+      // Add a review
+      await queryRunner.manager.save(Review, {
+        product: savedProduct,
+        user: users[3],
+        rating: 5,
+        comment: `Sản phẩm ${p.name} rất tuyệt vời!`,
+      });
+    }
 
-    await queryRunner.manager.save(VariantAttribute, {
-      variant_id: v1.id,
-      attribute_value_id: red.id,
-    });
-    await queryRunner.manager.save(VariantAttribute, {
-      variant_id: v1.id,
-      attribute_value_id: small.id,
-    });
+    // 6. Seed Banners
+    console.log('Seeding banners...');
+    const bannersData = [
+      { image_url: '/uploads/banner-hero.png', position: 'HERO', status: 1, link: '/products' },
+      { image_url: '/uploads/banner-ad.png', position: 'SIDEBAR', status: 1, link: '/categories' },
+    ];
+    for (const b of bannersData) {
+      await queryRunner.manager.save(Banner, b);
+    }
 
-    const v2 = queryRunner.manager.create(ProductVariant, {
-      product,
-      sku: 'GPRO-BLUE-L',
-      price: 600000,
-      stock: 30,
-    });
-    await queryRunner.manager.save(v2);
-
-    await queryRunner.manager.save(VariantAttribute, {
-      variant_id: v2.id,
-      attribute_value_id: blue.id,
-    });
-    await queryRunner.manager.save(VariantAttribute, {
-      variant_id: v2.id,
-      attribute_value_id: large.id,
+    // 7. Seed Promotions
+    console.log('Seeding promotions...');
+    await queryRunner.manager.save(Promotion, {
+      name: 'Giảm giá mùa hè',
+      code: 'SUMMER2026',
+      type: 1, // Toàn sàn
+      discount_type: 1, // %
+      discount_value: 15,
+      min_order_value: 500000,
+      max_discount_value: 100000,
+      start_at: new Date(),
+      end_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      is_active: 1,
     });
 
     await queryRunner.commitTransaction();
-    console.log('Seeding completed successfully!');
+    console.log('Advanced seeding completed successfully!');
   } catch (err) {
     console.error('Error during seeding:', err);
     await queryRunner.rollbackTransaction();
   } finally {
     await queryRunner.release();
-    await AppDataSource.destroy();
   }
 }
 

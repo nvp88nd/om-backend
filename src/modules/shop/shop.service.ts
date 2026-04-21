@@ -26,7 +26,7 @@ export class ShopService {
     @InjectRepository(WalletTransaction)
     private readonly walletTransactionRepository: Repository<WalletTransaction>,
     private dataSource: DataSource,
-  ) {}
+  ) { }
 
   async create(userId: string, createShopDto: CreateShopDto) {
     // 1. Check if user already owns a shop
@@ -35,16 +35,16 @@ export class ShopService {
       throw new NotFoundException('User not found');
     }
 
-    const existingShop = await this.shopRepository.findOne({ 
-      where: { owner: { id: userId } } 
+    const existingShop = await this.shopRepository.findOne({
+      where: { owner: { id: userId } }
     });
     if (existingShop) {
       throw new ConflictException('User already owns a shop');
     }
 
     // 2. Check if slug is unique
-    const slugExists = await this.shopRepository.findOne({ 
-      where: { slug: createShopDto.slug } 
+    const slugExists = await this.shopRepository.findOne({
+      where: { slug: createShopDto.slug }
     });
     if (slugExists) {
       throw new ConflictException('Shop slug is already in use');
@@ -85,9 +85,9 @@ export class ShopService {
   }
 
   async findOne(id: string) {
-    const shop = await this.shopRepository.findOne({ 
+    const shop = await this.shopRepository.findOne({
       where: { id },
-      relations: ['owner', 'wallet'] 
+      relations: ['owner', 'wallet']
     });
     if (!shop) {
       throw new NotFoundException('Shop not found');
@@ -96,7 +96,7 @@ export class ShopService {
   }
 
   async findByUserId(userId: string) {
-    const shop = await this.shopRepository.findOne({ 
+    const shop = await this.shopRepository.findOne({
       where: { owner: { id: userId } },
       relations: ['wallet']
     });
@@ -124,7 +124,7 @@ export class ShopService {
   async updateStatus(id: string, adminId: string, status: number, reason?: string) {
     const shop = await this.findOne(id);
     const admin = await this.userRepository.findOne({ where: { id: adminId } });
-    
+
     shop.status = status;
     await this.shopRepository.save(shop);
 
@@ -210,5 +210,42 @@ export class ShopService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  async getShopMetrics(shopId: string) {
+    const shop = await this.findOne(shopId);
+
+    return {
+      id: shop.id,
+      name: shop.name,
+      response_rate: Number(shop.response_rate || 0),
+      followers_count: Number(shop.followers_count || 0),
+      product_quality_score: Number(shop.product_quality_score || 0),
+      created_at: shop.created_at,
+    };
+  }
+
+  /**
+   * Update shop metrics
+   * This would typically be called by cron jobs or event handlers
+   */
+  async updateShopMetrics(shopId: string, metrics: {
+    response_rate?: number;
+    followers_count?: number;
+    product_quality_score?: number;
+  }) {
+    const shop = await this.findOne(shopId);
+
+    if (metrics.response_rate !== undefined) {
+      shop.response_rate = Math.min(100, Math.max(0, metrics.response_rate));
+    }
+    if (metrics.followers_count !== undefined) {
+      shop.followers_count = Math.max(0, metrics.followers_count);
+    }
+    if (metrics.product_quality_score !== undefined) {
+      shop.product_quality_score = Math.min(100, Math.max(0, metrics.product_quality_score));
+    }
+
+    return this.shopRepository.save(shop);
   }
 }

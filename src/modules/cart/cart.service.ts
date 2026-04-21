@@ -71,6 +71,8 @@ export class CartService {
         variant_name: variantName || 'Mặc định',
         price: unitPrice,
         stock,
+        shop_id: product?.shop?.id,
+        shop_name: product?.shop?.name,
       };
     });
 

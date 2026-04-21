@@ -33,6 +33,15 @@ export class Shop {
     status: number;
     // 0 pending, 1 active, 2 rejected, 3 locked
 
+    @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
+    response_rate: number;
+
+    @Column({ type: 'int', default: 0 })
+    followers_count: number;
+
+    @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
+    product_quality_score: number;
+
     @CreateDateColumn()
     created_at: Date;
 

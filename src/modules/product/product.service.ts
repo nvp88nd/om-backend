@@ -10,6 +10,7 @@ import { Shop } from '../shop/entities/shop.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductFilterDto, ProductStatus } from './dto/product-filter.dto';
+import { ContentSystemService } from '../content_system/content_system.service';
 
 @Injectable()
 export class ProductService {
@@ -20,10 +21,19 @@ export class ProductService {
     private readonly shopRepository: Repository<Shop>,
     @InjectRepository(Category)
     private readonly categoryRepository: Repository<Category>,
+    private readonly contentSystemService: ContentSystemService,
     private dataSource: DataSource,
   ) { }
 
   async create(userId: string, createProductDto: CreateProductDto) {
+    const productContent = `${createProductDto.name || ''} ${createProductDto.description || ''}`.trim();
+    if (productContent) {
+      const containsBanned = await this.contentSystemService.checkContent(productContent);
+      if (containsBanned) {
+        throw new BadRequestException('Product contains banned content');
+      }
+    }
+
     const shop = await this.shopRepository.findOne({ where: { owner: { id: userId } } });
     if (!shop) {
       throw new BadRequestException('User does not have a shop');
@@ -123,11 +133,11 @@ export class ProductService {
     }
 
     if (category_id) {
-      query.andWhere('product.category_id = :category_id', { category_id });
+      query.andWhere('product.category = :category_id', { category_id });
     }
 
     if (shop_id) {
-      query.andWhere('product.shop_id = :shop_id', { shop_id });
+      query.andWhere('product.shop = :shop_id', { shop_id });
     }
 
     if (min_price !== undefined) {
@@ -171,7 +181,7 @@ export class ProductService {
     const query = this.productRepository.createQueryBuilder('product')
       .leftJoinAndSelect('product.category', 'category')
       .leftJoinAndSelect('product.images', 'image')
-      .where('product.shop_id = :shopId', { shopId: shop.id })
+      .where('product.shop = :shopId', { shopId: shop.id })
       .skip((page - 1) * limit)
       .take(limit)
       .orderBy(`product.${sort_by}`, sort_order);
@@ -181,7 +191,7 @@ export class ProductService {
     }
 
     if (category_id) {
-      query.andWhere('product.category_id = :category_id', { category_id });
+      query.andWhere('product.category = :category_id', { category_id });
     }
 
     if (status !== undefined) {
@@ -211,6 +221,11 @@ export class ProductService {
         'variants.attributes.attributeValue.attribute',
         'shop'
       ],
+      order: {
+        images: {
+          created_at: 'ASC'
+        }
+      }
     });
     if (!product) {
       throw new NotFoundException('Product not found');
@@ -277,6 +292,14 @@ export class ProductService {
   }
 
   async update(userId: string, id: string, updateProductDto: UpdateProductDto) {
+    const updateContent = `${updateProductDto.name || ''} ${updateProductDto.description || ''}`.trim();
+    if (updateContent) {
+      const containsBanned = await this.contentSystemService.checkContent(updateContent);
+      if (containsBanned) {
+        throw new BadRequestException('Product contains banned content');
+      }
+    }
+
     const product = await this.productRepository.findOne({
       where: { id },
       relations: ['shop']
@@ -310,8 +333,31 @@ export class ProductService {
       product.category = category;
     }
 
-    // Optional: Reset status to pending if key fields are updated
-    // product.status = ProductStatus.PENDING;
+    if (updateProductDto.images) {
+      const queryRunner = this.dataSource.createQueryRunner();
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+      try {
+        // Delete old images
+        await queryRunner.manager.delete(ProductImage, { product: { id: product.id } });
+
+        // Create new images
+        const newImages = updateProductDto.images.map(img =>
+          queryRunner.manager.create(ProductImage, {
+            product: product,
+            image_url: img.image_url,
+            is_main: img.is_main || false,
+          })
+        );
+        await queryRunner.manager.save(newImages);
+        await queryRunner.commitTransaction();
+      } catch (err) {
+        await queryRunner.rollbackTransaction();
+        throw err;
+      } finally {
+        await queryRunner.release();
+      }
+    }
 
     await this.productRepository.save(product);
     return this.findOne(product.id);

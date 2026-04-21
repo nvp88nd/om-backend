@@ -83,10 +83,9 @@ export class AuthService {
       is_used: false,
     });
 
-    console.log(`[DEV ONLY] OTP for ${email}: ${otp}`);
     const mailSent = await this.MailService.sendVerificationEmail(user.email, otp);
     if (!mailSent) {
-      console.log(mailSent);
+      throw new BadRequestException('Unable to send OTP email at this time');
     }
 
     return {

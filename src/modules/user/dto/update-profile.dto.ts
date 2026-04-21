@@ -10,6 +10,6 @@ export class UpdateProfileDto {
   phone?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsString()
   avatar_url?: string;
 }

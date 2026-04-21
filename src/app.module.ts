@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
@@ -17,12 +19,17 @@ import { PromotionModule } from './modules/promotion/promotion.module';
 import { ContentSystemModule } from './modules/content_system/content_system.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { ComplaintViolationModule } from './modules/complaint_violation/complaint_violation.module';
+import { UploadModule } from './modules/upload/upload.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'uploads'),
+      serveRoot: '/uploads',
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -54,6 +61,7 @@ import { ComplaintViolationModule } from './modules/complaint_violation/complain
     ContentSystemModule,
     AdminModule,
     ComplaintViolationModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],

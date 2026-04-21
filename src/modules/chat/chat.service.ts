@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ChatRoom } from './entities/chat-room.entity';
 import { ChatMessage } from './entities/chat-message.entity';
 import { Shop } from '../shop/entities/shop.entity';
 import { SendMessageDto } from './dto/chat.dto';
+import { ContentSystemService } from '../content_system/content_system.service';
 
 @Injectable()
 export class ChatService {
@@ -15,7 +16,8 @@ export class ChatService {
     private readonly messageRepository: Repository<ChatMessage>,
     @InjectRepository(Shop)
     private readonly shopRepository: Repository<Shop>,
-  ) {}
+    private readonly contentSystemService: ContentSystemService,
+  ) { }
 
   async getOrCreateRoom(customerId: string, shopId: string) {
     let room = await this.roomRepository.findOne({
@@ -40,7 +42,7 @@ export class ChatService {
   async getRoomsForUser(userId: string) {
     // Return rooms where user is either customer or shop owner
     const shop = await this.shopRepository.findOne({ where: { owner: { id: userId } } });
-    
+
     const query = this.roomRepository.createQueryBuilder('room')
       .leftJoinAndSelect('room.customer', 'customer')
       .leftJoinAndSelect('room.shop', 'shop')
@@ -78,6 +80,14 @@ export class ChatService {
 
   async saveMessage(userId: string, dto: SendMessageDto) {
     const { room_id, content, message_type } = dto;
+
+    if (content?.trim()) {
+      const containsBanned = await this.contentSystemService.checkContent(content);
+      if (containsBanned) {
+        throw new BadRequestException('Message contains banned content');
+      }
+    }
+
     const room = await this.roomRepository.findOne({
       where: { id: room_id },
       relations: ['shop', 'shop.owner', 'customer'],
@@ -106,7 +116,7 @@ export class ChatService {
       .set({ is_read: true })
       .where('room_id = :roomId AND sender_id != :userId', { roomId, userId })
       .execute();
-    
+
     return { success: true };
   }
 }

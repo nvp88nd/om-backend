@@ -23,7 +23,7 @@ export class CreateProductVariantDto {
 
 export class CreateProductImageDto {
   @IsNotEmpty()
-  @IsUrl()
+  @IsString()
   image_url: string;
 
   @IsOptional()

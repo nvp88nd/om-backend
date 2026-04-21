@@ -1,6 +1,8 @@
 import { Controller, Get, Post, Body, Patch, Param, UseGuards, ParseUUIDPipe } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { CalculateShippingDto } from './dto/calculate-shipping.dto';
+import { ShippingService } from './shipping.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { OrderStatus } from './order.constants';
@@ -11,11 +13,22 @@ import { Roles } from '../auth/decorators/roles.decorator';
 @Controller('orders')
 @UseGuards(JwtAuthGuard)
 export class OrderController {
-  constructor(private readonly orderService: OrderService) { }
+  constructor(
+    private readonly orderService: OrderService,
+    private readonly shippingService: ShippingService,
+  ) { }
 
   @Post()
   create(@CurrentUser('id') userId: string, @Body() createOrderDto: CreateOrderDto) {
     return this.orderService.create(userId, createOrderDto);
+  }
+
+  @Post('calculate-shipping')
+  calculateShipping(
+    @CurrentUser('id') userId: string,
+    @Body() dto: CalculateShippingDto,
+  ) {
+    return this.orderService.calculateShippingFee(userId, dto);
   }
 
   @Get('my-orders')

@@ -7,6 +7,7 @@ import { CreateReviewDto, UpdateReviewDto } from './dto/review.dto';
 import { Product } from '../product/entities/product.entity';
 import { Order } from '../order/entities/order.entity';
 import { OrderStatus } from '../order/order.constants';
+import { ContentSystemService } from '../content_system/content_system.service';
 
 @Injectable()
 export class ReviewService {
@@ -19,10 +20,18 @@ export class ReviewService {
     private readonly productRepository: Repository<Product>,
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
+    private readonly contentSystemService: ContentSystemService,
   ) { }
 
   async create(userId: string, createReviewDto: CreateReviewDto) {
     const { product_id, rating, comment } = createReviewDto;
+
+    if (comment?.trim()) {
+      const containsBanned = await this.contentSystemService.checkContent(comment);
+      if (containsBanned) {
+        throw new BadRequestException('Review contains banned content');
+      }
+    }
 
     // 1. Check if product exists
     const product = await this.productRepository.findOne({ where: { id: product_id } });

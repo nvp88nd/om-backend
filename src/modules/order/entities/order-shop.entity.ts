@@ -25,7 +25,10 @@ export class OrderShop {
     @Column({ type: 'decimal', precision: 14, scale: 2, default: 0 })
     discount_amount: number;
 
-    @Column({ type: 'uuid', nullable: true })
+    @Column({ type: 'decimal', precision: 14, scale: 2, default: 0 })
+    shipping_fee: number;
+
+    @Column({ type: 'char', length: 36, nullable: true })
     promotion_id?: string;
 
     @Column({ type: 'smallint' })

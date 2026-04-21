@@ -10,7 +10,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('shop')
 export class ShopController {
-  constructor(private readonly shopService: ShopService) {}
+  constructor(private readonly shopService: ShopService) { }
 
   @UseGuards(JwtAuthGuard)
   @Post()
@@ -56,6 +56,11 @@ export class ShopController {
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.shopService.findOne(id);
+  }
+
+  @Get(':id/metrics')
+  getShopMetrics(@Param('id', ParseUUIDPipe) id: string) {
+    return this.shopService.getShopMetrics(id);
   }
 
   @UseGuards(JwtAuthGuard)

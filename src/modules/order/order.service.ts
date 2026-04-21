@@ -16,11 +16,13 @@ import { ProductVariant } from '../product/entities/product-variant.entity';
 import { UserAddress } from '../auth/entities/user_address.entity';
 import { Shop } from '../shop/entities/shop.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { CalculateShippingDto } from './dto/calculate-shipping.dto';
 import { OrderStatus, PaymentStatus, ReturnRequestStatus } from './order.constants';
 import { Cart } from '../cart/entities/cart.entity';
 import { CartItem } from '../cart/entities/cart-item.entity';
 import { CreateReturnRequestDto, ReturnRequestDecision } from './dto/return-request.dto';
 import { PromotionService } from '../promotion/promotion.service';
+import { ShippingService } from './shipping.service';
 
 @Injectable()
 export class OrderService {
@@ -44,6 +46,7 @@ export class OrderService {
     @InjectRepository(CartItem)
     private readonly cartItemRepository: Repository<CartItem>,
     private readonly promotionService: PromotionService,
+    private readonly shippingService: ShippingService,
     private dataSource: DataSource,
   ) { }
 
@@ -213,7 +216,8 @@ export class OrderService {
       user_id: order.user?.id ?? '',
       status: this.toFrontendOrderStatus(Number(order.status)),
       total_amount: Number(order.total_amount),
-      discount_amount: Number(order.discount_amount || 0),
+      discount_amount: Number(order.discount_amount || 0) + (order.orderShops ?? []).reduce((sum, os) => sum + Number(os.discount_amount || 0), 0),
+      shipping_fee: Number(order.shipping_fee || 0),
       promotion_id: order.promotion_id,
       payment_method: order.payment_method,
       shipping_address_id: order.shipping_address_id ?? null,
@@ -369,12 +373,24 @@ export class OrderService {
         }
       }
 
-      const finalTotalAmount = Math.max(0, totalAmount - orderDiscountAmount - Array.from(shopGroups.values()).reduce((sum, g) => sum + g.discount_amount, 0));
+      const finalShopGroups = Array.from(shopGroups.values());
+      const shippingResult = this.shippingService.calculateShippingFeeForOrder(
+        finalShopGroups.map(g => ({
+          shop: g.shop,
+          itemCount: g.items.reduce((sum, i) => sum + i.quantity, 0),
+          subtotal: g.subtotal
+        })),
+        address
+      );
+
+      const totalShippingFee = shippingResult.totalFee;
+      const finalTotalAmount = Math.max(0, totalAmount + totalShippingFee - orderDiscountAmount - finalShopGroups.reduce((sum, g) => sum + g.discount_amount, 0));
 
       const order = queryRunner.manager.create(Order, {
         user: { id: userId } as any,
         total_amount: finalTotalAmount,
         discount_amount: orderDiscountAmount,
+        shipping_fee: totalShippingFee,
         promotion_id: orderPromotionId,
         status: OrderStatus.PENDING,
         payment_method,
@@ -393,12 +409,14 @@ export class OrderService {
         await this.promotionService.recordUsage(queryRunner.manager, userId, orderPromotionId);
       }
 
-      for (const group of shopGroups.values()) {
+      for (const group of finalShopGroups) {
+        const shopShippingFee = shippingResult.byShop[group.shop.id]?.total_fee || 0;
         const orderShop = queryRunner.manager.create(OrderShop, {
           order: savedOrder,
           shop: group.shop,
           subtotal: group.subtotal,
           discount_amount: group.discount_amount,
+          shipping_fee: shopShippingFee,
           promotion_id: group.promotion_id,
           status: OrderStatus.PENDING,
         });
@@ -447,6 +465,56 @@ export class OrderService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  async calculateShippingFee(userId: string, dto: any) {
+    const { shops, address_id } = dto;
+
+    // Get shipping address
+    const address = await this.addressRepository.findOne({
+      where: { id: address_id, user_id: userId },
+    });
+    if (!address) {
+      throw new NotFoundException('Shipping address not found');
+    }
+
+    // Get shop data for each shop group
+    const shopGroupsData: { shop: any; itemCount: any; subtotal: any }[] = [];
+    for (const shopItem of shops) {
+      const shop = await this.shopRepository.findOne({
+        where: { id: shopItem.shop_id },
+      });
+      if (!shop) {
+        throw new NotFoundException(`Shop ${shopItem.shop_id} not found`);
+      }
+      shopGroupsData.push({
+        shop,
+        itemCount: shopItem.item_count,
+        subtotal: shopItem.subtotal,
+      });
+    }
+
+    // Calculate shipping fees using ShippingService
+    const result = this.shippingService.calculateShippingFeeForOrder(
+      shopGroupsData,
+      address,
+    );
+
+    // Format response
+    const byShop = {};
+    for (const [shopId, fee] of Object.entries(result.byShop)) {
+      byShop[shopId] = {
+        shop_id: shopId,
+        base_fee: fee.base_fee,
+        distance_fee: fee.distance_fee,
+        total_fee: fee.total_fee,
+      };
+    }
+
+    return {
+      by_shop: byShop,
+      total_fee: result.totalFee,
+    };
   }
 
   async findOne(id: string) {

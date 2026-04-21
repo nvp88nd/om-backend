@@ -7,14 +7,16 @@ import { ChatRoom } from './entities/chat-room.entity';
 import { ChatMessage } from './entities/chat-message.entity';
 import { Shop } from '../shop/entities/shop.entity';
 import { AuthModule } from '../auth/auth.module';
+import { ContentSystemModule } from '../content_system/content_system.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([ChatRoom, ChatMessage, Shop]),
     AuthModule,
+    ContentSystemModule,
   ],
   controllers: [ChatController],
   providers: [ChatService, ChatGateway],
   exports: [ChatService],
 })
-export class ChatModule {}
+export class ChatModule { }
