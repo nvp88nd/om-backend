@@ -388,4 +388,15 @@ export class ProductService {
     product.status = status;
     return this.productRepository.save(product);
   }
+
+  async findFlashSale(limit: number = 6) {
+    return this.productRepository.createQueryBuilder('product')
+      .leftJoinAndSelect('product.category', 'category')
+      .leftJoinAndSelect('product.images', 'image')
+      .leftJoinAndSelect('product.shop', 'shop')
+      .where('product.status = :approved', { approved: ProductStatus.APPROVED })
+      .orderBy('RAND()') // Get random products for Flash Sale
+      .take(limit)
+      .getMany();
+  }
 }

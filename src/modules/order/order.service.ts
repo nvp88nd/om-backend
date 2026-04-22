@@ -23,6 +23,9 @@ import { CartItem } from '../cart/entities/cart-item.entity';
 import { CreateReturnRequestDto, ReturnRequestDecision } from './dto/return-request.dto';
 import { PromotionService } from '../promotion/promotion.service';
 import { ShippingService } from './shipping.service';
+import { Review } from '../review/entities/review.entity';
+import { ShopWallet } from '../shop/entities/shop-wallet.entity';
+import { WalletTransaction } from './entities/wallet_transaction.entity';
 
 @Injectable()
 export class OrderService {
@@ -45,6 +48,12 @@ export class OrderService {
     private readonly cartRepository: Repository<Cart>,
     @InjectRepository(CartItem)
     private readonly cartItemRepository: Repository<CartItem>,
+    @InjectRepository(Review)
+    private readonly reviewRepository: Repository<Review>,
+    @InjectRepository(ShopWallet)
+    private readonly shopWalletRepository: Repository<ShopWallet>,
+    @InjectRepository(WalletTransaction)
+    private readonly walletTransactionRepository: Repository<WalletTransaction>,
     private readonly promotionService: PromotionService,
     private readonly shippingService: ShippingService,
     private dataSource: DataSource,
@@ -126,6 +135,84 @@ export class OrderService {
     return images.find((image) => image.is_main)?.image_url ?? images[0]?.image_url;
   }
 
+  private getOrderShopSettlementAmount(orderShop: OrderShop) {
+    return Number(Number(orderShop.subtotal || 0).toFixed(2));
+  }
+
+  private async settleOrderShopRevenue(manager: EntityManager, orderShop: OrderShop) {
+    const referenceId = `ORDER_SHOP_SETTLED:${orderShop.id}`;
+    const existingTransaction = await manager.findOne(WalletTransaction, {
+      where: { reference_id: referenceId },
+    });
+
+    if (existingTransaction) {
+      return;
+    }
+
+    const amount = this.getOrderShopSettlementAmount(orderShop);
+    if (amount <= 0) {
+      return;
+    }
+
+    const wallet = await manager.findOne(ShopWallet, {
+      where: { shop_id: orderShop.shop.id },
+    });
+
+    if (!wallet) {
+      throw new NotFoundException('Shop wallet not found');
+    }
+
+    wallet.balance = Number((Number(wallet.balance || 0) + amount).toFixed(2));
+    await manager.save(wallet);
+
+    const transaction = manager.create(WalletTransaction, {
+      shop_id: orderShop.shop.id,
+      type: 'IN',
+      amount,
+      reference_id: referenceId,
+    });
+    await manager.save(transaction);
+  }
+
+  private async debitShopWalletForRefund(
+    manager: EntityManager,
+    shopId: string,
+    referenceId: string,
+    amountInput: number,
+  ) {
+    const amount = Number(Number(amountInput).toFixed(2));
+    if (amount <= 0) {
+      return;
+    }
+
+    const existingTransaction = await manager.findOne(WalletTransaction, {
+      where: { reference_id: referenceId },
+    });
+
+    if (existingTransaction) {
+      return;
+    }
+
+    const wallet = await manager.findOne(ShopWallet, {
+      where: { shop_id: shopId },
+    });
+
+    if (!wallet) {
+      throw new NotFoundException('Shop wallet not found');
+    }
+
+    wallet.balance = Number((Number(wallet.balance || 0) - amount).toFixed(2));
+    await manager.save(wallet);
+
+    const transaction = manager.create(WalletTransaction, {
+      shop_id: shopId,
+      type: 'OUT',
+      amount,
+      reference_id: referenceId,
+    });
+    await manager.save(transaction);
+  }
+
   private mapReturnRequest(request: ReturnRequest) {
     const orderItem = request.orderItem;
     const variant = orderItem?.variant;
@@ -178,18 +265,19 @@ export class OrderService {
       return;
     }
 
-    const refundedRequests = await manager
+    const refundedRows = await manager
       .getRepository(ReturnRequest)
       .createQueryBuilder('request')
       .leftJoin('request.orderItem', 'orderItem')
       .leftJoin('orderItem.orderShop', 'orderShop')
       .leftJoin('orderShop.order', 'order')
+      .select('orderItem.id', 'orderItemId')
       .where('order.id = :orderId', { orderId })
       .andWhere('request.status = :status', { status: ReturnRequestStatus.REFUNDED })
-      .getMany();
+      .getRawMany<{ orderItemId: string }>();
 
     const refundedItemIds = new Set(
-      refundedRequests.map((request) => request.orderItem?.id).filter(Boolean) as string[],
+      refundedRows.map((row) => row.orderItemId).filter(Boolean),
     );
 
     if (allItemIds.every((itemId) => refundedItemIds.has(itemId))) {
@@ -198,11 +286,13 @@ export class OrderService {
     }
   }
 
-  private mapOrderForFrontend(order: Order) {
+  private mapOrderForFrontend(order: Order, reviewedProductIds: Set<string> = new Set()) {
     const items = (order.orderShops ?? []).flatMap((orderShop) =>
       (orderShop.items ?? []).map((item) => ({
         id: item.id,
         variant_id: item.variant?.id,
+        product_id: item.variant?.product?.id,
+        is_reviewed: Boolean(item.variant?.product?.id && reviewedProductIds.has(item.variant.product.id)),
         quantity: Number(item.quantity),
         price: Number(item.price),
         product_name: item.variant?.product?.name ?? 'Sản phẩm',
@@ -233,6 +323,38 @@ export class OrderService {
       createdAt: order.created_at?.toISOString?.() ?? new Date().toISOString(),
       updatedAt: order.created_at?.toISOString?.() ?? new Date().toISOString(),
     };
+  }
+
+  private async getReviewedProductIdsForOrders(userId: string, orders: Order[]) {
+    const productIds = Array.from(
+      new Set(
+        orders
+          .flatMap((order) =>
+            (order.orderShops ?? []).flatMap((orderShop) =>
+              (orderShop.items ?? []).map((item) => item.variant?.product?.id),
+            ),
+          )
+          .filter((productId): productId is string => Boolean(productId)),
+      ),
+    );
+
+    if (productIds.length === 0) {
+      return new Set<string>();
+    }
+
+    const reviews = await this.reviewRepository.find({
+      where: {
+        user: { id: userId },
+        product: { id: In(productIds) },
+      },
+      relations: ['product'],
+    });
+
+    return new Set(
+      reviews
+        .map((review) => review.product?.id)
+        .filter((productId): productId is string => Boolean(productId)),
+    );
   }
 
   async create(userId: string, createOrderDto: CreateOrderDto) {
@@ -368,7 +490,8 @@ export class OrderService {
             }
           } catch (e) {
             // Invalid code or not applicable, ignore for now or handle as error
-            throw new BadRequestException(`Promotion code ${code} is invalid or not applicable: ${e.message}`);
+            const errorMessage = e instanceof Error ? e.message : String(e);
+            throw new BadRequestException(`Promotion code ${code} is invalid or not applicable: ${errorMessage}`);
           }
         }
       }
@@ -556,7 +679,9 @@ export class OrderService {
       order: { created_at: 'DESC' },
     });
 
-    return orders.map((order) => this.mapOrderForFrontend(order));
+    const reviewedProductIds = await this.getReviewedProductIdsForOrders(userId, orders);
+
+    return orders.map((order) => this.mapOrderForFrontend(order, reviewedProductIds));
   }
 
   async createReturnRequest(userId: string, dto: CreateReturnRequestDto) {
@@ -610,6 +735,7 @@ export class OrderService {
         'orderItem.variant.product',
         'orderItem.variant.product.images',
         'orderItem.orderShop',
+        'orderItem.orderShop.shop',
         'orderItem.orderShop.order',
         'refunds',
       ],
@@ -684,6 +810,7 @@ export class OrderService {
         'orderItem.variant.product',
         'orderItem.variant.product.images',
         'orderItem.orderShop',
+        'orderItem.orderShop.shop',
         'orderItem.orderShop.order',
         'refunds',
       ],
@@ -710,6 +837,13 @@ export class OrderService {
     try {
       request.status = ReturnRequestStatus.REFUNDED;
       await queryRunner.manager.save(request);
+
+      await this.debitShopWalletForRefund(
+        queryRunner.manager,
+        request.orderItem.orderShop.shop.id,
+        `ORDER_REFUND:${request.id}`,
+        Number(request.orderItem.subtotal),
+      );
 
       const refund = queryRunner.manager.create(Refund, {
         returnRequest: request,
@@ -775,7 +909,9 @@ export class OrderService {
       throw new NotFoundException('Order not found');
     }
 
-    return this.mapOrderForFrontend(order);
+    const reviewedProductIds = await this.getReviewedProductIdsForOrders(userId, [order]);
+
+    return this.mapOrderForFrontend(order, reviewedProductIds);
   }
 
   async findAllForShop(userId: string) {
@@ -805,22 +941,39 @@ export class OrderService {
       throw new BadRequestException('User does not have a shop');
     }
 
-    const orderShop = await this.orderShopRepository.findOne({
-      where: { id: orderShopId, shop: { id: shop.id } },
-      relations: ['order'],
-    });
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (!orderShop) {
-      throw new NotFoundException('Order not found for this shop');
+    try {
+      const orderShop = await queryRunner.manager.findOne(OrderShop, {
+        where: { id: orderShopId, shop: { id: shop.id } },
+        relations: ['order', 'shop'],
+      });
+
+      if (!orderShop) {
+        throw new NotFoundException('Order not found for this shop');
+      }
+
+      const status = this.parseOrderStatusInput(statusInput);
+      const previousStatus = orderShop.status;
+      orderShop.status = status;
+      const savedOrderShop = await queryRunner.manager.save(orderShop);
+
+      if (previousStatus !== OrderStatus.COMPLETED && status === OrderStatus.COMPLETED) {
+        await this.settleOrderShopRevenue(queryRunner.manager, savedOrderShop);
+      }
+
+      await queryRunner.commitTransaction();
+      await this.syncMainOrderStatus(savedOrderShop.order.id);
+
+      return savedOrderShop;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    const status = this.parseOrderStatusInput(statusInput);
-    orderShop.status = status;
-    await this.orderShopRepository.save(orderShop);
-
-    await this.syncMainOrderStatus(orderShop.order.id);
-
-    return orderShop;
   }
 
   private async syncMainOrderStatus(orderId: string) {

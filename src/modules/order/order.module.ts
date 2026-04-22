@@ -14,6 +14,9 @@ import { UserAddress } from '../auth/entities/user_address.entity';
 import { Shop } from '../shop/entities/shop.entity';
 import { Cart } from '../cart/entities/cart.entity';
 import { CartItem } from '../cart/entities/cart-item.entity';
+import { Review } from '../review/entities/review.entity';
+import { ShopWallet } from '../shop/entities/shop-wallet.entity';
+import { WalletTransaction } from './entities/wallet_transaction.entity';
 import { PromotionModule } from '../promotion/promotion.module';
 
 @Module({
@@ -30,6 +33,9 @@ import { PromotionModule } from '../promotion/promotion.module';
       Shop,
       Cart,
       CartItem,
+      Review,
+      ShopWallet,
+      WalletTransaction,
     ]),
     PromotionModule,
   ],

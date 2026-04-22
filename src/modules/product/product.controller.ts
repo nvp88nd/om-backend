@@ -28,6 +28,11 @@ export class ProductController {
     return this.productService.findAllForShop(userId, filter);
   }
 
+  @Get('flash-sale')
+  findFlashSale(@Query('limit') limit?: string) {
+    return this.productService.findFlashSale(limit ? Number(limit) : undefined);
+  }
+
   // Public: Get product details
   @Get(':id/similar')
   findSimilar(
