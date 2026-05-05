@@ -4,6 +4,10 @@ import { Type } from 'class-transformer';
 export class CreateProductVariantDto {
   @IsOptional()
   @IsString()
+  id?: string;
+
+  @IsOptional()
+  @IsString()
   sku?: string;
 
   @IsNotEmpty()

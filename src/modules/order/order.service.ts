@@ -15,7 +15,7 @@ import { Refund } from './entities/refund.entity';
 import { ProductVariant } from '../product/entities/product-variant.entity';
 import { UserAddress } from '../auth/entities/user_address.entity';
 import { Shop } from '../shop/entities/shop.entity';
-import { CreateOrderDto } from './dto/create-order.dto';
+import { CreateOrderDto, PaymentMethod } from './dto/create-order.dto';
 import { CalculateShippingDto } from './dto/calculate-shipping.dto';
 import { OrderStatus, PaymentStatus, ReturnRequestStatus } from './order.constants';
 import { Cart } from '../cart/entities/cart.entity';
@@ -26,6 +26,7 @@ import { ShippingService } from './shipping.service';
 import { Review } from '../review/entities/review.entity';
 import { ShopWallet } from '../shop/entities/shop-wallet.entity';
 import { WalletTransaction } from './entities/wallet_transaction.entity';
+import { UserWalletService } from '../user/user-wallet.service';
 
 @Injectable()
 export class OrderService {
@@ -54,6 +55,7 @@ export class OrderService {
     private readonly shopWalletRepository: Repository<ShopWallet>,
     @InjectRepository(WalletTransaction)
     private readonly walletTransactionRepository: Repository<WalletTransaction>,
+    private readonly userWalletService: UserWalletService,
     private readonly promotionService: PromotionService,
     private readonly shippingService: ShippingService,
     private dataSource: DataSource,
@@ -562,10 +564,22 @@ export class OrderService {
         }
       }
 
+      let paymentStatus = PaymentStatus.PENDING;
+
+      if (payment_method === PaymentMethod.WALLET) {
+        await this.userWalletService.debit(
+          userId,
+          finalTotalAmount,
+          `ORDER_PAYMENT:${savedOrder.id}`,
+          queryRunner.manager,
+        );
+        paymentStatus = PaymentStatus.PAID;
+      }
+
       const payment = queryRunner.manager.create(Payment, {
         order: savedOrder,
         provider: payment_method,
-        status: PaymentStatus.PENDING,
+        status: paymentStatus,
       });
       await queryRunner.manager.save(payment);
 
@@ -845,6 +859,13 @@ export class OrderService {
         Number(request.orderItem.subtotal),
       );
 
+      await this.userWalletService.credit(
+        request.user.id,
+        Number(request.orderItem.subtotal),
+        `ORDER_RETURN_REFUND:${request.id}`,
+        queryRunner.manager,
+      );
+
       const refund = queryRunner.manager.create(Refund, {
         returnRequest: request,
         amount: Number(request.orderItem.subtotal),
@@ -1011,7 +1032,7 @@ export class OrderService {
   async cancelOrder(userId: string, orderId: string) {
     const order = await this.orderRepository.findOne({
       where: { id: orderId, user: { id: userId } },
-      relations: ['orderShops'],
+      relations: ['orderShops', 'payments'],
     });
 
     if (!order) {
@@ -1045,6 +1066,20 @@ export class OrderService {
           const variant = item.variant;
           variant.stock += Number(item.quantity);
           await queryRunner.manager.save(variant);
+        }
+      }
+
+      if (order.payment_method === PaymentMethod.WALLET) {
+        await this.userWalletService.credit(
+          userId,
+          Number(order.total_amount),
+          `ORDER_CANCEL_REFUND:${order.id}`,
+          queryRunner.manager,
+        );
+
+        for (const payment of order.payments ?? []) {
+          payment.status = PaymentStatus.REFUNDED;
+          await queryRunner.manager.save(payment);
         }
       }
 

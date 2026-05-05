@@ -3,14 +3,14 @@ import { UserService } from './user.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CreateAddressDto } from './dto/create-address.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
-import { WalletQueryDto, TopupWalletDto } from './dto/wallet.dto';
+import { DebitWalletDto, WalletQueryDto, TopupWalletDto } from './dto/wallet.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @Controller('user')
 @UseGuards(JwtAuthGuard)
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService) { }
 
   @Patch('profile')
   updateProfile(
@@ -83,5 +83,14 @@ export class UserController {
     @Body() dto: TopupWalletDto,
   ) {
     return this.userService.topupWallet(userId, dto);
+  }
+
+  @Post('wallet/debit')
+  @HttpCode(HttpStatus.OK)
+  debitWallet(
+    @CurrentUser('id') userId: string,
+    @Body() dto: DebitWalletDto,
+  ) {
+    return this.userService.debitWallet(userId, dto);
   }
 }

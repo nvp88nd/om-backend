@@ -6,8 +6,8 @@ import { UserAddress } from '../auth/entities/user_address.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CreateAddressDto } from './dto/create-address.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
-import { WalletQueryDto, TopupWalletDto } from './dto/wallet.dto';
-import { WalletTransaction } from '../order/entities/wallet_transaction.entity';
+import { DebitWalletDto, WalletQueryDto, TopupWalletDto } from './dto/wallet.dto';
+import { UserWalletService } from './user-wallet.service';
 
 @Injectable()
 export class UserService {
@@ -16,11 +16,8 @@ export class UserService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(UserAddress)
     private readonly addressRepository: Repository<UserAddress>,
-    @InjectRepository(WalletTransaction)
-    private readonly walletTransactionRepository: Repository<WalletTransaction>,
-  ) {}
-
-  private readonly USER_WALLET_REF_PREFIX = 'USER_WALLET:';
+    private readonly userWalletService: UserWalletService,
+  ) { }
 
   private mapAddress(address: UserAddress) {
     return {
@@ -184,45 +181,7 @@ export class UserService {
 
   async getWallet(userId: string, query: WalletQueryDto) {
     const { page = 1, limit = 20 } = query;
-
-    const txQuery = this.walletTransactionRepository
-      .createQueryBuilder('tx')
-      .where('tx.shop_id = :userId', { userId })
-      .andWhere('tx.reference_id LIKE :prefix', {
-        prefix: `${this.USER_WALLET_REF_PREFIX}%`,
-      });
-
-    const [transactions, total, aggregate] = await Promise.all([
-      txQuery
-        .clone()
-        .orderBy('tx.created_at', 'DESC')
-        .skip((page - 1) * limit)
-        .take(limit)
-        .getMany(),
-      txQuery.clone().getCount(),
-      txQuery
-        .clone()
-        .select(
-          "COALESCE(SUM(CASE WHEN tx.type = 'IN' THEN tx.amount ELSE -tx.amount END), 0)",
-          'balance',
-        )
-        .getRawOne(),
-    ]);
-
-    return {
-      balance: Number(aggregate?.balance || 0),
-      page,
-      limit,
-      total,
-      total_pages: Math.ceil(total / limit),
-      transactions: transactions.map((tx) => ({
-        id: tx.id,
-        type: tx.type,
-        amount: Number(tx.amount),
-        reference_id: tx.reference_id,
-        created_at: tx.created_at,
-      })),
-    };
+    return this.userWalletService.getWalletSummary(userId, page, limit);
   }
 
   async topupWallet(userId: string, dto: TopupWalletDto) {
@@ -231,24 +190,43 @@ export class UserService {
       throw new BadRequestException('Topup amount must be greater than 0');
     }
 
-    const referenceSuffix = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
-    const transaction = this.walletTransactionRepository.create({
-      shop_id: userId,
-      type: 'IN',
-      amount,
-      reference_id: `${this.USER_WALLET_REF_PREFIX}${referenceSuffix}`,
-    });
-    const saved = await this.walletTransactionRepository.save(transaction);
+    const referenceId =
+      dto.reference_id || `TOPUP:${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+    const result = await this.userWalletService.credit(userId, amount, referenceId);
 
     const wallet = await this.getWallet(userId, { page: 1, limit: 20 });
     return {
       message: 'Topup successful',
       transaction: {
-        id: saved.id,
-        type: saved.type,
-        amount: Number(saved.amount),
-        reference_id: saved.reference_id,
-        created_at: saved.created_at,
+        id: result.transaction.id,
+        type: result.transaction.type,
+        amount: Number(result.transaction.amount),
+        reference_id: result.transaction.reference_id,
+        created_at: result.transaction.created_at,
+      },
+      wallet,
+    };
+  }
+
+  async debitWallet(userId: string, dto: DebitWalletDto) {
+    const amount = Number(dto.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Debit amount must be greater than 0');
+    }
+
+    const referenceId =
+      dto.reference_id || `USER_SPEND:${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+    const result = await this.userWalletService.debit(userId, amount, referenceId);
+
+    const wallet = await this.getWallet(userId, { page: 1, limit: 20 });
+    return {
+      message: 'Debit successful',
+      transaction: {
+        id: result.transaction.id,
+        type: result.transaction.type,
+        amount: Number(result.transaction.amount),
+        reference_id: result.transaction.reference_id,
+        created_at: result.transaction.created_at,
       },
       wallet,
     };

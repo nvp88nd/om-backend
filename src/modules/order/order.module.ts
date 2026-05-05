@@ -18,6 +18,7 @@ import { Review } from '../review/entities/review.entity';
 import { ShopWallet } from '../shop/entities/shop-wallet.entity';
 import { WalletTransaction } from './entities/wallet_transaction.entity';
 import { PromotionModule } from '../promotion/promotion.module';
+import { UserModule } from '../user/user.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { PromotionModule } from '../promotion/promotion.module';
       WalletTransaction,
     ]),
     PromotionModule,
+    UserModule,
   ],
   controllers: [OrderController],
   providers: [OrderService, ShippingService],

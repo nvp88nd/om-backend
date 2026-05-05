@@ -24,5 +24,24 @@ export class TopupWalletDto {
 
   @IsOptional()
   @IsString()
+  reference_id?: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+export class DebitWalletDto {
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  amount: number;
+
+  @IsOptional()
+  @IsString()
+  reference_id?: string;
+
+  @IsOptional()
+  @IsString()
   note?: string;
 }
